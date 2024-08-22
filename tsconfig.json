@@ -1,0 +1,26 @@
+{
+  "ts-node": {
+    "files": true
+  },
+  "compilerOptions": {
+    "jsx": "react",   
+    "module": "nodenext",    
+    "moduleResolution": "nodenext",       
+    "declaration": false,                             
+    "removeComments":true,
+    "emitDecoratorMetadata":true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "allowJs": true,
+    "target": "esNext",
+    "sourceMap": false,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true
+  },
+  "exclude": ["node_modules"],
+  "include": ["./src/**/*.ts"]
+}
