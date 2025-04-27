@@ -1,495 +1,1100 @@
-import AdminJS from 'adminjs'
-import AdminJSExpress from '@adminjs/express'
-import express, {Request, Response} from 'express';
-import session from 'express-session'
+import AdminJS, {actionErrorHandler, ComponentLoader} from 'adminjs';
+import AdminJSExpress from '@adminjs/express';
+import express, {Request,Response} from 'express';
+
+
+import dotenv from 'dotenv';
+dotenv.config();
+
+import mongoose, {Schema, Document} from 'mongoose';
+import * as AdminJSMongoose from '@adminjs/mongoose';
+import connectMongoDBSession from 'connect-mongodb-session';
+
+import session from 'express-session';
 import bcrypt from 'bcrypt';
 
-import mongoose, {Schema, Document } from 'mongoose'
-import * as AdminJSMongoose from '@adminjs/mongoose'
-import connectMongoDBSession from 'connect-mongodb-session';
+import PDFDocument from 'pdfkit';
+import {jsPDF} from "jspdf";
+
+import React, {FC, createElement} from 'react';
+import {Box, Text} from '@adminjs/design-system';
+import {ActionResponse} from 'adminjs';
+import build from 'adminjs';
+import {ResourceOptions, Action} from 'adminjs';
 
 import path from 'path';
 import * as url from 'url';
-const __dirname = url.fileURLToPath(new URL('.', import.meta.url))
+const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
-import {Components, componentLoader } from './components.js'
-import {AccountHolder, IAccountHolder} from './models/accountHolder.model.js'
-import {ActiveUser, IActiveUser} from './models/activeUser.model.js'
-import {ItemCategory} from "./models/itemCategory.model.js"
-import {ItemType} from './models/itemType.model.js'
-import {ItemSubType} from './models/itemSubType.model.js'
-import {ItemBrand} from './models/itemBrand.model.js' 
-import {ItemInformation, IItemInformation} from "./models/itemInformation.model.js"
-import {UpdateItemPrice, IUpdateItemPrice} from './models/updateItemPrice.model.js';
-import {ProfiledPartner} from './models/profiledPartner.model.js' 
-import {SubscriptionType} from './models/subscriptionType.model.js'
-import {PurchaseOrder, IPurchaseOrder} from './models/purchaseOrder.model.js';
+//--------------------------------model imports------------------------------------------------------
+//-----Customer Profile
+import {AccountSubscriber, IAccountSubscriber} from './models/accountSubscriber.model.js'
+import {ActiveSubscriber} from './models/activeSubscriber.model.js';
+//-----Item Profile
+import {ItemCategory} from "./models/itemCategory.model.js";
+import {ItemType} from './models/itemType.model.js';
+import {ItemSubType} from './models/itemSubType.model.js';
+import {ItemBrand} from './models/itemBrand.model.js' ;
+import {ItemInformation, IItemInformation} from "./models/itemInformation.model.js";
+import {SchemeInformation, ISchemeIP} from './models/schemeInformationProfile.model.js';
+//-----Business Profile
+import {UOM} from './models/uom.model.js';
+import {ProfiledPartner} from './models/profiledPartner.model.js'; 
+import {SubscriptionType} from './models/subscriptionType.model.js';
 import {PaymentClass} from './models/paymentClass.model.js';
-import {Remittance, IRemittance} from './models/remittance.model.js';
-import {AccountStatement, IAccountStatement} from './models/accountStatement.model.js';
+import {ECommerceProfile, IECommerceProfile, IECommerceProfileItem} from './models/eCommerceProfile.model.js';
+//-----Transaction Profile
+import {LayAwayPurchaseOrder, ILayAwayPurchaseOrder} from './models/layAwayPurchaseOrder.model.js';
+import {StandardPurchaseOrder, IStandardPurchaseOrder} from './models/standardPurchaseOrder.model.js';
+import {UserScheme, IUserScheme} from './models/userScheme.model.js';
+import {Project214Information, IProject214Information} from './models/project214Information.model.js'; 
+import {SubscribeToProject214} from './models/subscribeToProject214.model.js';
+import {PaymentPlan, IPaymentPlan, AmortizationSchedule, IAmortizationSchedule} from './models/paymentPlan.model.js';
+//-----Update Profile
+import {UpdateScheme} from './models/updateScheme.model.js';
+import {UpdateItemPrice} from './models/updateItemPrice.model.js';
+//-----Remittance Profile
+import {RemittanceOnLayAwayPO, IRemittanceLayAwayPO} from './models/remittanceOnLayAwayPO.model.js';
+import {RemittanceOnStandardPO, IRemittanceStandardPO} from './models/remittanceOnStandardPO.model.js';
+import {RemitOnScheme, IRemittanceScheme } from './models/remittanceScheme.model.js';
+//-----Wallet Profile
+import {NairaWalletBalance, INairaWalletBalance} from './models/walletNairaBalance.model.js';
+
+//router-imports
 import {getUserProfiles} from './routes/getUserProfiles.route.js';
+import schemeInformationRouter from './routes/schemeInformation. route.js';
+import lawAwayPurchaseOrderRouter from './routes/layAwayPurchaseOrder.route.js';
+import standardPurchaseOrderRouter from './routes/standardPurchaseOrder.route.js';
+import userSchemeRouter from './routes/userScheme.route.js';
+import Project214Router from './routes/project214.route.js';
+import paymentPlanRouter from './routes/paymentPlan.route.js';
+import subscribeToProject214Router from './routes/subscribeToPoject214.route.js';
+import nairaWalletRouter from './routes/walletNaira.route.js';
 
-const PORT = 3012
+//service-imports
+import {getAvailableFractionalUnits} from './services/subscribeToProject214.service.js';
 
-//Initialize AdminJS
+//utils-imports
+import {generateCombinedFOREAShortId} from './utils/generateCombinedFOREAShortId.utils.js';
+import {generateCombinedPaymentPlanShortId} from './utils/generateCombinedPaymentPlanShortId.utils.js';
+import {generateCombinedRemittanceShortId} from './utils/generateCombinedRemittanceShortId.utils.js';
+import generateCombinedPOShortId from './utils/generateCombinedPOShortId.util.js';
+import {generateCombinedPropertyID} from './utils/generateCombinedPropertyID.utils.js';
+import {generateBlockShortId} from './utils/generateBlockShortId.utils.js';
+import {generateHouseShortId} from './utils/generateHouseShortId.utils.js';
+import {generatePropertyListingShortId} from './utils/generatePropertyListingID.utils.js';
+import {fetchAvaiilableFractionalUnits} from './utils/fetchAvailableFractionalUnits.utils.js';
+import generateWalletTransactionsShortId from './utils/generateWalletTransactionsShortId.utils.js';
+import generateActiveUserShortId from './utils/generateActiveSubscriberShortId.utils.js';
+
+
+//action-imports
+import fetchFractionalUnits from './actions/fetchFractionalUnits.action.js';
+
+//admin/component imports
+import ActiveUserResourceOptions from './admin/activeUserResource.js';
+import FractionalUnitsList from './admin/customComponents/FractionalUnitsList.js';
+import UnitSelectionComponent from './admin/customComponents/UnitSelectionComponent.js';
+
+//---PORT
+const PORT = 3017
+
+//initialize AdminJS
 AdminJS.registerAdapter({
-    Resource: AdminJSMongoose.Resource,
-    Database: AdminJSMongoose.Database,
-  })
+  Resource: AdminJSMongoose.Resource,
+  Database: AdminJSMongoose.Database,
+});
 
-const DEFAULT_ADMIN = {
-  email: 'admin@assets360nigeria.com',
-  password: 'MultiplierEffect1000%',
-}
-
+const DEFAULT_ADMIN = {email:'admin@asset360nigeria.com', password:'MultiplierEffect1000%'};
 const authenticate = async (email:string, password:string) => {
   if (email === DEFAULT_ADMIN.email && password === DEFAULT_ADMIN.password) {
-    return Promise.resolve(DEFAULT_ADMIN)
-  }
-  return null
-}
+      return Promise.resolve(DEFAULT_ADMIN)}
+      return null
+};
 
 const start = async () => {
-  const app = express()
-  app.use(express.static(path.join(__dirname, "../public")));
+  const app = express(); //initialize express
+  app.use(express.json()); // middleware to parse JSON requests
+  app.use('/public', express.static(path.join(__dirname, 'public'))); //middleware to parse form data
+  app.use(express.static(path.join(__dirname, 'pdfs/'))); //middleware to serve static files
   
-  const mongooseDB = await mongoose.connect('mongodb+srv://jorgehausconsulting:Woman1010@cluster0.rsvxjzs.mongodb.net/asset360')
+  const mongooseDB = await mongoose.connect('mongodb+srv://jorgehausconsulting:Woman1010@cluster0.rsvxjzs.mongodb.net/asset360') //connect to MongoDB
   const MongoDBStore = connectMongoDBSession(session);
   const sessionStore = new MongoDBStore({
-  uri:'mongodb+srv://jorgehausconsulting:Woman1010@cluster0.rsvxjzs.mongodb.net/asset360',
-  collection:'session'
-});
-  sessionStore.on('error', (error) => {
-  console.error('MongoDB Session Store Error:', error);
-});
+    uri:'mongodb+srv://jorgehausconsulting:Woman1010@cluster0.rsvxjzs.mongodb.net/asset360', collection:'session'});
+    sessionStore.on('error', (error) => {
+    console.error('MongoDB Session Store Error:', error);
+  });
 
-//Optionally (In case we want to access backend data on the dashboard. For example, we may want to display charts or statistics in general.
-// To do, we might need to create a handler for the dashboard to access server data'
-const dashboardHandler = async () => {
-  try {
-    await mongoose.connect('mongodb+srv://jorgehausconsulting:Woman1010@cluster0.rsvxjzs.mongodb.net/asset360');
+  //Optionally (in case we want to access backend data on the dashboard. For example, we may want to display charts or statistics in general.
+  //To do this, we might need to create a handler for the dashboard to access server data'.
+  const dashboardHandler = async () => {
+    try {
+        await mongoose.connect('mongodb+srv://jorgehausconsulting:Woman1010@cluster0.rsvxjzs.mongodb.net/asset360');
+        
+        //AccountHolder Model
+        const accountHolderModel = mongoose.model('AccountHolder', new mongoose.Schema({
+          accountHolderPhoneNo: String,
+          accountHolderEmail: String,
+          accountHolderPassword: String,
+          accountHolderConfirmPassword: String,
+          createdAt: Date,
+          lastUpdatedAt: Date
+        }));
 
-  const accountHolderModel = mongoose.model('AccountHolder', new mongoose.Schema({
-    accountHolderPhoneNo: String,
-    accountHolderEmail: String,
-    accountHolderPassword: String,
-    accountHolderConfirmPassword: String,
-    createdAt: Date,
-    lastUpdatedAt: Date
-    }));
+        //ActiveSubscriber Model
+        const activeSubscriberModel = mongoose.model('ActiveSubscriber', new mongoose.Schema({
+          activeSubscriberID: {type:String, default:generateActiveUserShortId, unique:true},
+              activeSubscriberPhoneRefNo: {type:Schema.Types.ObjectId, ref:'AccountSubscriber', unique:true, required:true},
+              activeSubscriberProfileImage: {type:String},
+              activeSubscriberFirstName: {type:String, required:true},
+              activeSubscriberMiddleName: {type:String, required:true},
+              activeSubscriberLastName: {type:String, required:true},
+              activeSubscriberEmail: {type:String},
+              activeSubscriberPhoneNo: {type:String, unique:true},
+              activeSubscriberGender: {type:String, required:false, enum:['MALE','FEMALE','RATHER NOT SAY']},
+              activeSubscriberDOB: {type:Date},
+              activeSubscriberWorkStatus: {type:String, required:true, enum:['EMPLOYED', 'SELF-EMPLOYED', 'NOT CURRENTLY EMPLOYED']},
+              activeSubscriberSelectCompany: {type:Schema.Types.ObjectId, ref:'ProfiledPartner'},
+              nonProfiledCompanyName: {type:String, required:true},
+              nonProfiledWorkAddress: {type:String, required:true},
+              activeSubscriberAssetDeliveryAddress: {type:String, required:true},
+              activeSubscriberNairaWalletID: {type:String},
+              americanUSDWalletID: {type:String},
+              britishPoundsWalletID: {type:String},
+              marketPlaceID: {type:String},
+              createdAt: {type:Date, default:Date.now, required:true},
+              lastUpdatedAt: {type:Date, default:Date.now, required:true}
+        }));
+          
 
-  const activeUserModel = mongoose.model('ActiveUser', new mongoose.Schema({
-    activeUserUserID: String,
-    activeUserUserPhoneRefNo: {type:Schema.Types.ObjectId, ref:'AccountHolder'}, 
-    activeUserUserFirstName: String,
-    activeUserUserLastName: String,
-    activeUserUserEmail: String,
-    activeUserPhoneNo: String,
-    activeUserGender:String,
-    activeUserDOB: String,
-    activeserWorkStatus: String,
-    activeUserSelectCompany: {type:Schema.Types.ObjectId, ref:'ProfiledPartner'},
-    nonProfiledCompanyName: String,
-    nonProfiledWorkAddress: String,
-    activeUserAssetDeliveryAddress:String,
-    createdAt: Date,
-    lastUpdatedAt:Date
-  }));
-  const itemCategoryModel = mongoose.model('ItemCategory', new mongoose.Schema({
-    itemCategoryName:String, 
-    createdAt:Date, 
-    lastUpdatedAt:Date
-  }));
+        //ItemCategory Model
+        const itemCategoryModel = mongoose.model('ItemCategory', new mongoose.Schema({
+          itemCategoryName:String, 
+          createdAt:Date, 
+          lastUpdatedAt:Date
+        }));
 
-const itemTypeModel =  mongoose.model('ItemType', new mongoose.Schema({
-  itemTypeName:String, 
-  createdAt:Date, 
-  lastUpdatedAt:Date
-}));
+        //ItemType Model
+        const itemTypeModel =  mongoose.model('ItemType', new mongoose.Schema({
+          itemTypeName:String, 
+          createdAt:Date, 
+          lastUpdatedAt:Date
+        }));
 
-const itemSubTypeModel =  mongoose.model('ItemSubType', new mongoose.Schema({
-  itemSubTypeName:String, 
-  createdAt:Date, 
-  lastUpdatedAt:Date
-}));
+        //ItemSubType Model
+        const itemSubTypeModel =  mongoose.model('ItemSubType', new mongoose.Schema({
+          itemSubTypeName:String, 
+          createdAt:Date, 
+          lastUpdatedAt:Date
+        }));
 
-const itemBrandModel = mongoose.model('ItemBrand', new mongoose.Schema({
-  itemBrandName:String, 
-  createdAt:Date, 
-  lastUpdatedAt:Date
-}));
+        //ItemBrand Model
+        const itemBrandModel = mongoose.model('ItemBrand', new mongoose.Schema({
+          itemBrandName:String, 
+          createdAt:Date, 
+          lastUpdatedAt:Date
+        }));
 
-const itemInformationModel = mongoose.model('ItemInformation', new mongoose.Schema({
-  itemInformationID: {type:String},
-  itemInformationCode: {type:String, required:true},
-  itemInformationName: {type:String, required:true},
-  itemInformationCategory: {type:Schema.Types.ObjectId, ref:'ItemCategory', required:true},
-  itemInformationBrand:{type:Schema.Types.ObjectId, ref:'ItemBrand', required:true},
-  itemInformationType:{type:Schema.Types.ObjectId, ref:'ItemType', required:true},
-  itemInformationSubType:{type:Schema.Types.ObjectId, ref:'ItemSubType', required:true},
-  itemInformationDescription:{type:String, required:true},
-  itemInformationImage: {type:String},
-  itemInformationMktStartPrice: {
-    type:Number,
-    virtual:true,
-    get(price:number) {
-    const iteminfocurmktprice = this.itemInformationCurrentMktPrice;
-    if (!iteminfocurmktprice) return null;
-    // Option 1: Escape curly braces in regular expression
-    // return `₦<span class="math-inline">{price.toFixed(2).replace(/\\d(?=(\d{3})+) /g, ',')}</span>`;
-    // Option 2: Use template literal with backticks
-    return `₦<span class="math-inline">${price.toFixed(2).replace(/(\d)(?=(\d{3})+(?!\d))/g, ',')}</span>`;
-  }},
-  itemInformationCurrentMktPrice:{typw:Number},
-  createdAt: {type:Date, default:Date.now},
-  lastUpdatedAt: {type:Date, default:Date.now}
-}))
+        //UnitOfMeasure Model
+        const unitOfMeasureModel = mongoose.model('UOM', new mongoose.Schema({
+          unitofMeasureID: {type:String},
+          unitMeaseureName: {type:String},
+          unitMeasureShortDesc: String,
+          createdAt: {type:Date, default:Date.now, required:true},
+          lastUpdatedAt: {type:Date, default:Date.now, required:true}
+        }));
 
-// updateItemPrice Model
-const updateItemPriceModel = mongoose.model('UpdateItemPrice', new mongoose.Schema({
-      itemToBeUpdatedRefID: {type:mongoose.Types.ObjectId, ref:'ItemInformation', required:true},
-      itemToBeUpdatedID: {type:String, required:true},
-      itemToBeupdatedDisplayName:String,
-      itemToBeUppdatedDisplayItemCode:String,
-      itemToBeUpdatedDisplayItemDesc:String,
-      itemToBeUpdatedStartPrice:Number,
-      updatedItemNewPriceByInflation:Number,
-      createdAt: {type:Date, default:Date.now},
-      lastUpdatedAt: {type:Date, default:Date.now},
-      //New Price Update Alert
-      itemInformationPriceUpdateDetails:[{
-        itemInformationTranDateForNewPriceUpdate: {type:Date},
-        itemInformationNewPriceUpdateRemarks: {type:String},
-        itemInformationCurrentMktPrice: {type:Number}
-    }]
-}));
+        //ItemInformation Model
+        const itemInformationModel = mongoose.model('ItemInformation', new mongoose.Schema({
+          itemInformationID: {type:String},
+          itemInformationCode: {type:String, required:true},
+          itemInformationName: {type:String, required:true},
+          itemInformationCategory: {type:Schema.Types.ObjectId, ref:'ItemCategory', required:true},
+          itemInformationBrand:{type:Schema.Types.ObjectId, ref:'ItemBrand', required:true},
+          itemInformationType:{type:Schema.Types.ObjectId, ref:'ItemType', required:true},
+          itemInformationSubType:{type:Schema.Types.ObjectId, ref:'ItemSubType', required:true},
+          itemInformationDescription:{type:String, required:true},
+          itemInformationImage: {type:String},
+          itemInformationECommerceProfile: {type:Schema.Types.ObjectId, ref:'ECommerceProfile', required:true},
+          itemInformationECommerceProfileName: {type:String, required:true},
+          itemInformationECommerceProfileDisplay: {type:String},
+          itemInformationCurrentMktPrice: { type: Number, required: true },
+          itemInformationMktStartPrice: {
+            type: Number, virtual: true, get(price: number) {
+            const iteminfocurmktprice = this.itemInformationCurrentMktPrice;
+            if (!iteminfocurmktprice) return null;
+            // Option 1: Escape curly braces in regular expression
+            // return `₦<span class="math-inline">{price.toFixed(2).replace(/\\d(?=(\d{3})+) /g, ',')}</span>`;
+            // Option 2: Use template literal with backticks
+            return `₦<span class="math-inline">${price.toFixed(2).replace(/(\d)(?=(\d{3})+(?!\d))/g, ',')}</span>`;
+            },
+          },
+          itemInformationClassification: {type:String, enum:['STANDARD','PREMIUM','LUXURY'], required:true},
+          createdAt: {type:Date, default:Date.now},
+          lastUpdatedAt: {type:Date, default:Date.now}
+        }));
 
-// ProfiledPartner Model
-const profiledPartnerModel = mongoose.model('ProfiledPartner', new mongoose.Schema({
-      profiledPartnerName: String,
-      profiledPartnerType: String,
-      profiledPartnerSubType: String,
-      profiledPartnerOfficeAdd: String,
-      profiledPartnerPayDay: Number,
-      createdAt: Date, 
-      lastUpdatedAt: Date
-    }));
+        //UpdateItemPrice Model
+         const updateItemPriceModel = mongoose.model('UpdateItemPrice', new mongoose.Schema({
+          itemToBeUpdatedRefID: {type:mongoose.Types.ObjectId, ref:'ItemInformation', required:true},
+          itemToBeUpdatedID: {type:String, required:true},
+          itemToBeupdatedDisplayName:String,
+          itemToBeUpdatedDisplayItemCode:String,
+          itemToBeUpdatedDisplayItemDesc:String,
+          itemToBeUpdatedStartPrice:Number,
+          updatedItemNewPriceByInflation:Number,
+          createdAt: {type:Date, default:Date.now},
+          lastUpdatedAt: {type:Date, default:Date.now},
+          itemInformationPriceUpdateDetails:[{
+            itemInformationTranDateForNewPriceUpdate: {type:Date},
+            itemInformationNewPriceUpdateRemarks: {type:String},
+            itemInformationCurrentMktPrice: {type:Number}
+          }]
+        }));  
 
-// SubscriptionType Model
-const subscriptionTypeModel = mongoose.model('SubscriptionType', new mongoose.Schema({
-      subscTypeName:String, 
-      subscTypeDesc:String,
-      createdAt:Date, 
-      lastUpdatedAt:Date
-    }));
+        //ProfiledPartner Model
+        const profiledPartnerModel = mongoose.model('ProfiledPartner', new mongoose.Schema({
+          profiledPartnerName: String,
+          profiledPartnerType: String,
+          profiledPartnerSubType: String,
+          profiledPartnerOfficeAdd: String,
+          profiledPartnerPayDay: Number,
+          createdAt: Date, 
+          lastUpdatedAt: Date
+        }));
 
+        //SubscriptionType Model
+        const subscriptionTypeModel = mongoose.model('SubscriptionType', new mongoose.Schema({
+          subscTypeName:String, 
+          subscTypeDesc:String,
+          createdAt:Date, 
+          lastUpdatedAt:Date
+        }));
+      
+        //LayAway PurchaseOrder Model
+        const layAwayPurchaseOrderModel = mongoose.model('LayAwayPurchaseOrder', new mongoose.Schema({
+          layAwayPurchaseOrderId: {type:String, default:generateCombinedPOShortId, unique:true},
+            layAwayPOrderForActiveSubscriberRefID: {type:Schema.Types.ObjectId, ref:'ActiveSubscriber', required:true},
+            layAwayPOrderForActiveSubscriberID: {type:String},
+            layAwayPOrderUserProfileFullName: {type:String},
+            layAwayPOrderUserProfilePhoneNo: {type:String},
+            layAwayPOrderUserProfileEmail: {type:String},
+            layAwayPOrderUserDeliveryAddress: {type:String},
+            layAwayPurchaseOrderIntent: {type:Schema.Types.ObjectId, ref:'ItemInformation', required:true},
+            layAwayPurchaseOrderIntentID: {type:String},
+            layAwayPurchaseOrderIntentItemCode: {type:String},
+            layAwayPurchaseOrderIntentItemName: {type:String},
+            layAwayPurchaseOrderIntentDesc: {type:String},
+            layAwayPurchaseOrderNoOfUnitBought: {type:Number, required:true},
+            layAwayPurchaseOrderUnitOfMeasureRefID: {type:Schema.Types.ObjectId, ref:'UOM', required:true},
+            layAwayPurchaseOrderUnitOfMeasure: {type:String},
+            layAwayPurchaseOrderUnitPrice: {type:Number},
+            layAwayPurchaseOrderTotalStartPrice: {type:Number},
+            layAwayPurchaseOrderAssetSubscTypeRefID: {type:Schema.Types.ObjectId, ref:'SubscriptionType', required:true},
+            layAwayPurchaseOrderAssetSubscType: {type:String},
+            layAwayPurchaseOrderNewPriceAlert: {type:Number},
+            PriceChangeOnLayAwayPOHistoryDetails: [{
+              priceChangeOnLayAwayPODate: {type:Date, default:Date.now},
+              priceChangeOnLayAwayPORemarks: {type:String},
+              newPriceAmountOnLayAwayPO: {type:Number},
+              priceAdjustmentAppliedOnLayAwayPO: {type:Boolean, default:false}
+            }],
+            PriceReverseAlertDetailsOnLayAwayPO: [{
+              layAwayPurchaseOrderReverseOldPrice: {type:Number},
+              layAwayPurchaseOrderReversalID: {type:String, default:generateCombinedPOShortId},
+              layAwayPurchaseOrderReverseDate: {type:Date, default:Date.now},
+              layAwayPurchaseOrderReverseNewPriceAlertRemarks: {type:String},
+              layAwayPurchaseOrderReverseNewPriceAlert: {type:Number}
+            }],
+            TotalRemittanceMadeSoFarOnLayAwayPO: [{
+              remitDateOnLayAwayPO: {type:Date, default:Date.now},
+              remittedDateOnLayAwayPO: {type:Date},
+              remittedAmountOnLayAwayPO: {type:Number},
+              remittedRemarksOnLayAwayPO: {type:String},
+              TotalPaymentsMadeSoFarOnLayAwayPO: {type:String}
+            }],
+            RemittanceBalanceToBePaidDetailsOnLayAwayPO: [{
+              priceChangeOnLayAwayPODate: {type:Date, default:Date.now},
+              isRemittanceAfterPriceChangeOnLayAwayPO: {type:Boolean},
+              remitDateOnLayAwayPO: {type:Date},
+              remittanceExpectedBalToBePaidOnLayAwayPO: {type:Number},
+              remittanceUpdateRemarksOnLayAwayPO: {type:String},
+              remittedAmountCROnLayAwayPO: {type:Number},
+              endingBalanceAfterLastRemittanceOnLayAwayPO: {type:Number},
+              priceAdjustmentAppliedOnLayAwayPO: {type:Boolean}
+            }],
+            createdAt: {type:Date, default:Date.now, required:true}, 
+            lastUpdatedAt: {type:Date, default:Date.now, required:true}
+        }));
 
-// PurchaseOrder Model
-const purchaseOrderModel = mongoose.model('PurchaseOrder', new mongoose.Schema({
-      purchaseOrderId: String,
-      //Timestamps
-      createdAt:Date,
-      pOrderForActiveUserRefID: {type:mongoose.Types.ObjectId, ref:'ActiveUser'},
-      pOrderForActiveUserID: String,
-      pOrderUserProfileFullName: String,
-      pOrderUserProfilePhoneNo: String,
-      pOrderUserProfileEmail: String,
-      purchaseOrderIntent: {type:mongoose.Types.ObjectId, ref:'ItemInformation', path:'', select:'itemInformationName'}, 
-      purchaseOrderIntentItemCode: String,
-      purchaseOrderIntentItemName: String,
-      purchaseOrderIntentDesc: String,
-      purchaseOrderAssetSubscType: {type:mongoose.Types.ObjectId},
-      //Price Change History
-      PriceChangeOnPOHistoryDetails:[{
-        priceChangeOnPODate: {type:Date},
-        priceChangeOnPORemarks: {type:String},
-        newPriceAmountOnPO: {type:Number}
-      }],
-      purchaseOrderCurrentPrice: Number,
-      purchaseOrderNewPriceAlert: Number,
-      //PO Price Reversal Alert
-      purchaseOrderPriceReverseAlertDetails:[{
-        purchaseOrderReverseDate: {type:Date},
-        purchaseOrderReverseNewPriceAlertRemarks: {type:String},
-        purchaseOrderReverseNewPriceAlert: {type:Number}
-      }],
-      remittanceUpdateDetails:[{
-        remitDateOnPO: Date,
-        remittanceExpectedBalToBePaidOnPO: {type:Number},
-        remittanceUpdateRemarksOnPO: {type:String},
-        remittedAmountCROnPO: {type:Number},
-        endingBalanceAfterLastRemittance: {type:Number}
-      }],
-      totalRemittanceMadeSoFar: Number,
-      lastUpdatedAt:Date
-  }));
+        //StandardPurchaseOrder Model
+        const standardPurchaseOrderModel = mongoose.model('StandardPurchaseOrder', new mongoose.Schema({
+          standardPurchaseOrderId: {type:String, default:generateCombinedPOShortId, unique:true},
+            createdAt: {type:Date, default:Date.now, required:true},
+            standardPOrderForActiveSubscriberRefID: {type:Schema.Types.ObjectId, ref:'ActiveSubscriber', required:true},
+            standardPOrderForActiveSubscriberID: {type:String},
+            standardPOrderUserProfileFullName: {type:String},
+            standardPOrderUserProfilePhoneNo: {type:String},
+            standardPOrderUserProfileEmail: {type:String},
+            standardPOrderUserDeliveryAddress: {type:String},
+            standardPurchaseOrderAssetSubscType: {type:String, default:'Outright Purchase'},
+            StandardPurchaseOrderItems: [{
+              standardPurchaseOrderCount: {type:Number},
+                standardPurchaseOrderDate: {type:Date, required:true},
+                standardPurchaseOrderIntent: {type:Schema.Types.ObjectId, ref:'ItemInformation', required:true},
+                standardPurchaseOrderIntentID: {type:String},
+                standardPurchaseOrderIntentItemCode: {type:String},
+                standardPurchaseOrderIntentItemName: {type:String},
+                standardPurchaseOrderIntentDesc: {type:String},
+                standardPurchaseOrderNoOfUnitBought: {type:Number, required:true},
+                standardPurchaseOrderUnitOfMeasureRefID: {type:Schema.Types.ObjectId, ref:'UOM', required:true},
+                standardPurchaseOrderUnitOfMeasure: {type:String},
+                standardPurchaseOrderUnitPrice: {type:Number},
+                standardPurchaseOrderTotalStartPrice: {type:Number},
+                standardPurchaseOrderNewPriceAlert: {type:Number},
+                PriceChangeOnStandardPOHistoryDetails: [{
+                  priceChangeOnStandardPODate: {type:Date, default:Date.now},
+                  priceChangeOnStandardPORemarks: {type:String},
+                  newPriceAmountOnStandardPO: {type:Number},
+                  priceAdjustmentAppliedOnStandardPO: {type:Boolean, default:false}
+                }],
+                PriceReverseAlertDetailsOnStandardPO: [{
+                  standardPOReverseDate: {type:Date, default:Date.now},
+                  standardPOReversalID: {type:String},
+                  standardPOReverseOldPrice: {type:Number},
+                  standardPOReverseNewPriceAlertRemarks: {type:String},
+                  standardPOReverseNewPriceAlert: {type:Number}
+                }],
+                RemittanceBalanceToBePaidDetailsOnStandardPO: [{
+                  priceChangeOnStandardPODate: {type:Date, default:Date.now},
+                  isRemittanceAfterPriceChangeOnStandardPO: {type:Boolean},
+                  remitDateOnStandardPO: {type:Date, default:Date.now},
+                  remittanceExpectedBalToBePaidStandardPO: {type:Number},
+                  remittanceUpdateRemarksOnStandardPO: {type:String},
+                  remittedAmountCROnStandardPO: {type:Number},
+                  endingBalanceAfterLastRemittanceOnStandardPO: {type:Number},
+                  priceAdjustmentAppliedOnStandardPO: {type:Boolean, default:false},
+                }],
+                StandardPurchaseOrderCumulativeBalance: [{
+                  cumulativeBalance: {type:Number}
+                }],
+                StandardPurchaseOrderItemsGrandTotal: [{
+                  updatedAt: {type:Date, default:Date.now},
+                  standardPurchaseOrderItemsGrandTotal: {type:Number}
+                }],
+              }],
+              TotalRemittanceMadeSoFarOnStandardPO: [{
+                remitDateOnStandardPO: {type:Date, default:Date.now},
+                remittedDateOnStandardPO: {type:Date},
+                remittedAmountOnStandardPO: {type:Number},
+                remittedRemarksOnStandardPO: {type:String},
+                TotalPaymentsMadeSoFarOnStandardPO: {type:String}
+              }],
+              lastUpdatedAt: {type:Date, default:Date.now, required:true}
+        }));
+      
+        //PaymentClass Model
+        const paymentClassModel = mongoose.model('PaymentClass', new mongoose.Schema({
+          paymentClassName:String,
+          paymentClassDesc: String,
+          createdAt:Date,
+          lastUpdatedAt:Date
+        }));
 
-// Payment Class Model
-const paymentClassModel = mongoose.model('PaymentClass', new mongoose.Schema({
-      paymentClassName:String,
-      paymentClassDesc: String,
-      createdAt:Date,
-      lastUpdatedAt:Date
-    }))
+        //remittanceLayAwayPO Model
+        const remittanceLayAwayPOModel = mongoose.model('Remittance', new mongoose.Schema({
+         remittanceForWhichLayAwayPORefID: {type:Schema.Types.ObjectId, ref:'LayAwayPurchaseOrder', required:true},
+            createdAt: {type:Date, default:Date.now, required:true},
+            remittanceDate: {type:Date, default:Date.now, required:true},
+            remittanceReferenceID: {type:String, default:generateCombinedRemittanceShortId, unique:true},
+            remittanceForWhichLayAwayPurchaseOrderID: {type:String},
+            remittanceForWhichActiveSubscriberID: {type:String},
+            remittanceActiveUserFullName: {type:String},
+            remittancePOPhoneNo: {type:String},
+            remittanceAmount_CR: {type:Number, required:true},
+            remittanceDueBalance: {type:Number},
+            remittancePaymentRefClass: {type:Schema.Types.ObjectId, ref:'PaymentClass', required:true},
+            remittancePaymentClass: {type:String},
+            remittanceOnLayWayPORemarks: {type:String, required:true},
+            lastUpdatedAt: {type:Date, default:Date.now, required:true}
+        }));
 
-// Remittance Model
-const remittanceModel = mongoose.model('Remittance', new mongoose.Schema({
-      remittanceReferenceID: String,
-      createdAt: Date,
-      remittanceDate: Date,
-      remittanceForWhichPurchaseOrderRefID: {type:mongoose.Types.ObjectId, ref:'PurchaseOrder'},
-      remittanceForWhichPurchaseOrderID: String,
-      remittanceForWhichActiveUserID: String,
-      remittanceActiveUserFullName: String,
-      remittancePOPhoneNo: String,
-      remittanceDueOpeningAmount: Number,
-      remittanceAmount_CR: Number,
-      remittanceDueBalance: Number,
-      remittancePaymentRefClass: {type:mongoose.Types.ObjectId, ref:'PaymentClass'},
-      remittancePaymentClass: String,
-      remittanceRemarks: String,
-      lastUpdatedAt: Date
-    }))
+        //remittanceStandardPO Model
+        const remittanceStandardPOModel = mongoose.model('RemittanceStandardPO', new mongoose.Schema({
+          remittanceReferenceID: {type:String, default:generateCombinedRemittanceShortId, unique:true},
+          remittanceForWhichStandardPORefID: {type:Schema.Types.ObjectId, ref:'StandardPurchaseOrder', required:true},
+          createdAt: {type:Date, default:Date.now, required:true},
+          remittanceDate: {type:Date, default:Date.now, required:true},
+          remittanceForWhichStandardPurchaseOrderID: {type:String},
+          remittanceForWhichActiveSubscriberID: {type:String},
+          remittanceActiveUserFullName: {type:String},
+          remittancePOPhoneNo: {type:String},
+          remittanceByUserEmailAddress: {type:String},
+          remittanceAmount_CR: {type:Number, required:true},
+          remittanceDueBalance: {type:Number},
+          remittancePaymentRefClass: {type:Schema.Types.ObjectId, ref:'PaymentClass', required:true},
+          remittancePaymentClass: {type:String},
+          remittanceOnStandardPORemarks: {type:String, required:true},
+          lastUpdatedAt: {type:Date, default:Date.now, required:true}
+        }));
 
-// Account Statement Model
-const accountStatementModel = mongoose.model('AccountStatement', new mongoose.Schema({
-    acctStatID: String,
-    getActiveUserIDonAcctStat:String,
-    getUserProfiledFullNameOnAcctStat:String, 
-    getUserProfiledEmailOnAcctStat:String,
-    getUserProfiledPhoneNoOnAcctStat:String,
-    accountStatPurchaseOrder:String,
-    getPurchaseOrderCreationDate:Date,
-    getPurchaseOrderRemarks:String,
-    getOpeningBalOnDRColumn:Number,
-    remittanceCRDetails:[{getRemittanceForWhichPurchaseOrderID:mongoose.Types.ObjectId},
-      {getRemittedAmountDate:Date,
-      getRemittanceTransactionRemarks:String,
-      getremittedAmountCR:Number,
-      getremittedBalanceToBePaid:Number
-  }],
-    getOpeningBalValue:Number,
-    createdAt:Date,
-    lastUpdatedAt:Date
-}));
- 
+        //remittanceScheme Model
+        const remittanceSchemeModel = mongoose.model('RemittanceScheme', new mongoose.Schema({
+          remittanceOnSchemeID: {type:String, required:true, unique:true},
+          remittanceForWhichUserSchemeTransID: {type:Schema.Types.ObjectId, required:true, ref:'UserScheme'},
+          createdAt: {type:Date, default:Date.now,},
+          remittanceOnSchemeDate: {type: Date, default:Date.now},
+          remittanceForWhichSchemeID: {type:String},
+          remittanceForWhichActiveUserIDWhoSchemed: {type:String, required:true},
+          remittanceActiveUserFullNameWhoSchemed: {type:String, required:true},
+          remittanceSchemePhoneNo: {type:String, required:true},
+          remittanceSchemeAmount_CR: {type:Number, required:true},
+          remittanceSchemeDueBalance: {type:Number, required:true},
+          remittanceSchemePaymentRefClass: {type:Schema.Types.ObjectId, required:true, ref:'PaymentClass'},
+          remittanceSchemePaymentClass: {type:String, required:true},
+          remittanceSchemeRemarks: {type:String, required:true},
+          lastUpdatedAt: {type:Date, default:Date.now},
+        }));
 
-//---COMPONENTS BEGIN HERE --//
-  //ApplUser Component
-  const accountHolderData = await accountHolderModel.find({}).exec();
+        //eCommerceProfile Model
+        const eCommerceProfileModel = mongoose.model('ECommerceProfile', new mongoose.Schema({
+          eCommerceProfileId: {type:String, required:true},
+          eCommerceProfileName: {type:String, required:true},
+          itemProfiling: [{
+            itemAvailability: {type:String, enum:['IN-STOCK/AVAILABLE','OUT-OF-STOCK', 'BACKORDER', 'DISCONTINUED', 'OTHERS'], required:true},
+            itemPricingValue: {type:String, enum:['BUDGET/VALUE', 'MID-RANGE', 'HIGH-END', 'OTHERS'], required:true},
+            itemProductLifeCycle: {type:String, enum:['BEST SELLERS','CLEARANCE/SALE', 'SEASONAL', 'OTHERS'], required:true},
+            itemCustomization: {type:String, enum:['PERSONALIZED', 'MADE-TO-ORDER', 'OTHERS'], required:true},
+            itemSustainability: {type:String, enum:['ECO-FRIENDLY/SUSTAINABLE', 'ORGANIC', 'FAIR-TRADE', 'OTHERS'], required:true},
+            itemAttributes: {type:String, enum:['COLOR', 'SIZE', 'STYLE', 'MATERIAL', 'OTHERS'], required:true},
+            itemOtherAttrbutes: {type:String, enum:['EXCLUSIVE', 'LIMITED EDITION', 'REFURBISHED', 'OPEN-BOX','OTHERS'], required:true},
+          }],
+          createdAt: {type:Date, default:Date},
+          lastUpdatedAt: {type:Date, default:Date},
+        }));
 
-  //ActiveUser Component
-  const activeUserData = await activeUserModel.find({})
-            .populate({model:'AccountHolder', path:'', select:'accountHolderPhoneNo'})
-            .populate({model:'ProfiledPartner', path:'', select:'profiledPartnerName'})
-            .exec();
+        //Scheme Model
+        const schemeModel = mongoose.model('SchemeInformation', new mongoose.Schema({
+          schemaID: {type:String, unique:true, required:true},
+          itemRefIDToBeSchemed: {type:Schema.Types.ObjectId, ref:'ItemInformation', unique:true},
+          itemIDToBeSchemed: {type:String},
+          itemNameToBeSchemed: {type:String},
+          itemDescriptionToBeSchemed: {type:String},
+          schemeName: {type:String, required:true},
+          schemeShortDescription: {type:String, required:true},
+          itemToBeSchemedOriginalPrice: {type:Number, required:true},
+          schemeRefUnitOfMeasure: {type:Schema.Types.ObjectId, ref:'UnitOfMeasure', required:true},
+          schemeUnitOfMeasure: {type:String},
+          schemeUnitPrice: {type:Number, required:true},
+          schemeDiscountWaved: {type:Number},
+          schemePaymentPlan: {type:String, required:true, enum:[
+            'MAKE SECURITY DEPOSIT FIRST, PAY BALANCE BEFORE DUE DATE', 'MAKE SECURITY DEPOSIT FIRST, PAY BALANCE ON DELIVERY',
+            'PAYMENT ON DELIVERY', 'FULL PAYMENT UPFRONT']
+          },
+          schemeMinimumSecurityDeposit: {type:Number, required:true},
+          totalUnitsAvailableForScheme: {type:Number, required:true},
+          schemeStartDate: {type:Date, required:true},
+          schemeEndDate: {type:Date, required:true},
+          schemeStatus: {type:String, required:true, enum:['ACTIVE', 'INACTIVE']},
+          schemeRunForHowManyDays: {type:String},
+          postDateBegins: {type:Date, required:true},
+          expectedNoOfDaysToDeliver: {type:Number, required:true},
+          expectedDeliveryDate: {type:Date, required:true},
+          createdAt: {type: Date, default:Date.now},
+          schemePoolDetailsUpdate: [{
+            schemeCount: {type:Number},
+            userSchemeTransID: {type:String},
+            userIDWhoSuccessfullySchemed: {type:String},
+            userNameWhoSuccessfullySchemed: {type:String},
+            userPhoneNoWhoSuccessfullySchemed: {type:String},
+            userDurationBeforeActionWasTaken: {type:String},
+            userAmountUserPaid: {type:Number},
+            userSchemedHowManyUnits: {type:Number}
+          }],
+          noOfUnitsAvailableAfterAUserSchemed: {type:Number},
+          lastUpdatedAt: {type:Date, default:Date.now}
+        }));
 
-  //ItemCategory Component
-    const itemCategoryData = await itemCategoryModel.find({}).exec();
+        //CreateUserScheme Model
+        const userSchemeModel = mongoose.model('UserScheme', new mongoose.Schema({
+          userSchemeTransactionID: {type:String, required:true, unique:true},
+          userRefIdRequiringScheme: {type:Schema.Types.ObjectId, ref:'ActiveUser', required:true},
+          userFullNameRequiringScheme: {type:String},
+          userEmailRequiringScheme: {type:String},
+          userPhoneNoRequiringScheme: {type:String},
+          userDeliveryAddressRequiringScheme: {type:String},
+          schemeRefIDUserSchemed: {type:Schema.Types.ObjectId, ref:'SchemeInformation', required:true},
+          schemeIDUserSchemed: {type:String},
+          schemeItemNameUserSchemed: {type:String},
+          schemeItemShortDescUserSchemed: {type:String},
+          schemeNameUserSchemed: {type:String},
+          schemeShortDescUserSchemed: {type:String},
+          schemePaymentStructureUserSchemed: {type:String},
+          userSchemeMinimumSecurityDeposit: {type:Number},
+          schemePaymentDueDate: {type:Date},
+          schemeItemOriginalPriceUserSchemed: {type:Number},
+          schemeUnitPriceUserSchemed: {type:Number},
+          schemeDiscountWavedUserSchemed: {type:Number},
+          schemeNoOfUnitsUserSchemed: {type:Number, required:true},
+          schemeTotalAmountUserSchemed: {type:Number},
+          schemeTotalSecurityDeposit: {type:Number},
+          schemeBalancePaymentBeforeDueDate: {type:Number},
+          schemeUserSchemedStartDate: {type:Date},
+          schemeUserSchemedEndDate: {type:Date},
+          shemeUserSchemedPostDateBegins: {type:Date},
+          expectedNoOfDaysToDeliver: {type:Number},
+          expectedDeliveryDate: {type:Date},
+          StatingBalanceOnSchemeHistory: [{
+            startSchemeDate: {type:Date},
+            startingBalanceRemarksOnScheme: {type:String},
+            startingBalanceOnScheme: {type:Number}, 
+          }],
+          TotalRemittanceMadeSoFar: [{
+            remitDateOnScheme: {type:Date},
+            remittedSchemeDate: {type:Date},
+            remittedSchemeAmount: {type:Number},
+            remittedSchemeRemarks: {type:String},
+            TotalPaymentsMadeSoFar: {type:String}
+          }],
+          RemittanceBalanceToBePaidDetails: [{
+            remitOnSchemeDate: {type:Date},
+            remittanceExpectedBalToBePaidOnScheme: {type:Number},
+            remitOnSchemeRemarks: {type:String},
+            remittedAmountCROnScheme: {type:Number},
+            endingBalanceAfterLastRemittanceOnScheme: {type:Number}
+          }],
+          amountdDepositedForSchemeByUser: {type:Number},
+          sumTotalAmountSecuritDepositsPaidByAllUsers: {type:Number}, 
+          createdAt: {type: Date, default:Date.now},
+          lastUpdatedAt: {type:Date, default:Date.now}
+        }));
 
-  //ItemType Component
-    const itemTypeData = await itemTypeModel.find({}).exec();
+        //Project214 Model
+        const project214Model = new Schema<IProject214Information>({
+          projectShortId: {type:String, default:generateCombinedFOREAShortId, unique:true},
+          projectName: {type:String, required:true},
+          projectNameAlias: {type:String, required:true},
+          projectDescription: {type:String, required:true},
+          projectStartDate: {type:Date, required:true},
+          projectCompletionLengthInMonths: {type:Number, required:true},
+          projectCompletionDate: {type:Date},
+          projectCurrentAcquisitionPhase: {type:String, required:true, enum: ['OFF-PLAN PURCHASE', 'UNDER CONSTRUCTION', 'NEWLY COMPLETED', 'READY-FOR-OCCUPANCY (RFO)', 
+          'PRE-OWNED/RESALE', 'DISTRESSED/FORECLOSURE SALE', 'TURNKEY PROPERTY']},
+          projectStructure: [{
+            blockID: {type:String, default:generateBlockShortId, unique:true},
+            blockName: {type:String, required:true},
+            blockDescription: {type:String, required:true},
+            houseDetails: [{
+                  houseID: {type:String, default:generateHouseShortId, unique:true},
+                  houseName: {type:String, required:true},
+                  houseDescription: {type:String, required:true},
+                  houseSalesPrice: {type:Number, required:true},
+                  fractionalUnitDetails: [{
+                          fractionalUnitID: {type:String, default:generateCombinedPropertyID, unique:true},
+                          fractionalUnitName: {type:String, required:true},
+                          fractionalUnitDescription: {type:String, required:true},
+                          fractionUnitSalesPrice: {type:Number, required:true},
+                          fractionalUnitSalesTag: {type:String, enum:['Not Yet Subscribed','Subscribed'], default:'Not Yet Subscribed'}
+                          }]
+                      }]
+                  }],
+            MultiSelectPaymentPlan: {selectedPlans: [{
+            plan: {type:Schema.Types.ObjectId, ref:'PaymentPlan'},
+            selectedPlanName: {type:String}
+            }]},
+            createdAt: {type:Date, default:Date.now},
+            lastUpdatedAt: {type:Date, default:Date.now}
+          });
 
-  //ItemsubType Component
-    const itemSubTypeData = await itemSubTypeModel.find({}).exec();
+          //PaymentPlan Model. First, Define the schema for OtherApplicableFlatFees & OtherApplicablePercentageFees
+          const OtherApplicableFlatFeesSchema = new Schema({
+            flatFeeName: {type:String, required:true},
+            flatFeeAmount: {type:Number, required:true}
+          });
+          const OtherApplicablePercentageFeesSchema = new Schema({
+            percentageFeeName: {type:String, required:true},
+            percentageFeeAmount: {type:Number, required:true}
+          });
+          const paymentPlanModel = mongoose.model('PaymentPlan', new mongoose.Schema({
+            paymentPlanId: {type:String, unique:true, default:generateCombinedPaymentPlanShortId},
+            paymentPlanName: {type:String, required:true},
+            paymentPlanDescription: {type:String, required:true},
+            paymentType: {type:String, required:true},
+            paymentFrequency: {type:String, required:true},
+            fractionalUnitPropertyAmount: {type:Number, required:true, default:0},
+            paymentDurationInMonths: {type:Number, required:true},
+            interestRateIfRequired: {type:Number, required:true, default:0},
+            interestFeeFaceValue: {type:Number, default:0},
+            OtherApplicableFlatFees: [OtherApplicableFlatFeesSchema],
+            OtherApplicablePercentageFees: [OtherApplicablePercentageFeesSchema],
+            AmortizationSchedule: [{
+              PaymentNoCount: {type:Number},
+              PaymentDueDatePerFrequency: {type:Date},
+              DuePaymentAmountPerFrequency: {type:Number},
+              InterestFeesPayablePerFrequency: {type:Number},
+              OtherFlatFeePayablePerFrequency: {type:Number},
+              OtherPercentageFeePayablePerFrequency: {type:Number},
+              TotalPayablePerFrequency: {type:Number},
+              BalanceToBePaidPerFrequency: {type:Number}
+              }],
+            createdOn: {type:Date, default:Date.now, required:true},
+            lastUpdatedAt: {type:Date, default:Date.now, required:true}
+          }));
 
-  //ItemBrand Component
-    const itemBrandData = await itemBrandModel.find({}).exec();
+          //SubscribeToProject214 Model
+          const subscribeToProject214Model = mongoose.model('SubscribeToProject214', new Schema({
+            subscribeP214OrderId: {type:String, unique:true, default:generateCombinedPOShortId},
+            subscribersActiveID: {type:Schema.Types.ObjectId, ref:'ActiveUser', required:true},
+            subscribersFullName: {type:String},
+            subscribersEmail: {type:String},
+            subscribersPhoneNumber: {type:String },
+            subscribersContactAddress: {type:String},
+            projectTheSubscriberIsInterestedIn: {type:Schema.Types.ObjectId, ref:'Project214Information', required:true},
+            projectTheSubscriberIsInterestedInName: {type:String},
+            projectTheSubscriberIsInterestedInShortDesc: {type:String},
+            projectTheSubscriberIsInterestedInStartDate: {type:Date},
+            projectTheSubscriberIsInterestedInCompletionDate: {type:Date},
+            projectTheSubscriberIsInterestedInAcquisitionStage: {type:String},
+            SubscribeToFractionsOfProject214: [{
+              propertyCount: {type:Number},
+              fractionalUnitID: {type:String},
+              fractionalUnitName: {type:String},
+              fractionalUnitDescription: {type:String},
+              fractionalUnitUniqueIdentifier: {type:String},
+              propertyAllocationNumber: {type:String},
+              fractionUnitSalesPrice: {type:Number},
+              fractionalUnitSalesTag: {type:String},
+              isSelected: {type:Boolean, default:false}
+            }],
+            selectedUnits: [{type:String}],
+            projectFractionalUnitsTotalSalePrice: {type:Number},
+            projectTheSubscriberIsInterestedInPaymentPlanID: {type:Schema.Types.ObjectId, ref:'PaymentPlan', required:true},
+            projectTheSubscriberIsInterestedInPaymentPlanName: {type:String},
+            projectTheSubscriberIsInterestedInPaymentPlanShortDesc: {type:String},
+            createdAt: {type:Date, required:true, default:Date.now()},
+            lastUpdatedAt: {type:Date, required:true, default:Date.now()},
+          }));
 
-  //Item Information Component
-    const itemInformationData = await itemInformationModel.find({})
+          //NairaWalletBalance Model
+          const nairaWalletBalanceModel = mongoose.model('NairaWalletBalance', new Schema({
+            nairaWalletOwner: {type:mongoose.Schema.Types.ObjectId, ref:'ActiveSubscriber', required:true},
+            nairaWalletID: {type:String},
+            nairaWalletOwnerFullName: {type:String},
+            nairaWalletOwnerEmail: {type:String},
+            nairaWalletOwnerPhoneNumber: {type:String},
+            nairaWalletCurrency: {type:String, default:'NGN'},
+            nairaWalletOpeningBalance: {type:Number},
+            depositFundsToNairaWallet: {type:Number},
+            withdrawFundsFromNairaWallet: {type:Number},
+            nairaWalletTransactionRemarks: {type:String, required:true},
+            nairaWalletClosingBalance: {type:Number},
+            createdAt: {type:Date, required:true, default:Date.now},
+            lastUpdatedAt: {type:Date, required:true, default:Date.now}
+          }));
+        
+        
+        //---DEFAULT COMPONENTS BEGIN HERE --//
+        //1. appUser Component
+        const accountHolderData = await accountHolderModel.find({}).exec();
+
+        //2. activeSubscriber Component
+        const activeSubscriberData = await activeSubscriberModel.find({})
+        .populate({model:'AccountHolder', path:'', select:'accountHolderPhoneNo'})
+        .populate({model:'ProfiledPartner', path:'', select:'profiledPartnerName'})
+        .exec();
+
+        //3. itemCategory Component
+        const itemCategoryData = await itemCategoryModel.find({}).exec();
+
+        //4. itemType Component
+        const itemTypeData = await itemTypeModel.find({}).exec();
+
+        //5. itemsubType Component
+        const itemSubTypeData = await itemSubTypeModel.find({}).exec();
+
+        //6. itemBrand Component
+        const itemBrandData = await itemBrandModel.find({}).exec();
+
+        //7. unitOfMeasure Component
+        const unitOfMeasureData = await unitOfMeasureModel.find({}).exec();
+
+        //8. item Information Component
+        const itemInformationData = await itemInformationModel.find({})
         .populate({model:'ItemCategory', path:'', select:'itemCategoryName'})
         .populate({model:'ItemType', path:'', select:'itemTypeName'})
         .populate({model:'ItemSubType', path:'', select:'itemBrandName'})
         .populate({model:'ItemBrand', path:'', select:'itemBrandName'})
         .exec();
-
-  // UpdateItemPrice Component
-    const updateItemPriceData = await updateItemPriceModel.find({})
+        
+        //9. updateItemPrice Component
+        const updateItemPriceData = await updateItemPriceModel.find({})
         .populate({model:'ItemInformation', path:'', select:'itemInformationName'})
         .exec();
+    
+        //10. profiledPartner Component
+        const profiledPartnerData = await profiledPartnerModel.find({}).exec();
 
-//ProfiledPartner Component
-    const profiledPartnerData = await profiledPartnerModel.find({}).exec();
+        //11. subscriptionType Component
+        const subscriptionTypeData = await subscriptionTypeModel.find({}).exec();
 
-//SubscriptionType Component
-    const subscriptionTypeData = await subscriptionTypeModel.find({}).exec();
+        //12. layAwaypurchaseOrder Component
+        const layAwayPurchaseOrderData = await layAwayPurchaseOrderModel.find({})
+        .populate({model:'ActiveSubscriber', path:'', select:'activeUserPhoneNo activeUserEmail activeUserFirstName activeUserLastName'})
+        .populate('ItemInfomation')
+        .populate('UOM')
+        .populate('SubcriptionType')
+        .exec();
 
-//PurchaseOrder Component
-    const purchaseOrderData = await purchaseOrderModel.find({})
-          .populate({model:'ActiveUser', path:'', select:'activeUserPhoneNo activeUserEmail activeUserFirstName activeUserLastName'})
-          .populate('Item')
-          .populate('SubcriptionType')
-          .exec();
-          console.log(purchaseOrderData);
+        //13. standardPurchaseOrder Component
+        const standardPurchaseOrderData = await standardPurchaseOrderModel.find({})
+        .populate({model:'ActiveSubscriber', path:'', select:'activeUserPhoneNo activeUserEmail activeUserFirstName activeUserLastName'})
+        .populate('ItemInfomation')
+        .populate('UOM')
+        .populate('SubcriptionType')
+        .exec();
 
-//PaymentClass Component
-  const paymentClassData = await paymentClassModel.find({}).exec();
-  
-//Remittance Component
-  const remittanceData = await remittanceModel.find({})
-        .populate({path:'', model:'PurchaseOrder', select:'purchaseOrderId'})
+        //14. paymentClass Component
+        const paymentClassData = await paymentClassModel.find({}).exec();
+
+        //15. remittanceLayAwayPO Component
+        const remittanceLayAwayPOData = await remittanceLayAwayPOModel.find({})
+        .populate({path:'', model:'LayWayPurchaseOrder', select:'purchaseOrderId'})
         .populate({path:'', model:'PaymentClass', select:'paymentClassName'})
         .exec();
 
-//AccountStatement Component
-  function structureAccountStatementData(accountStatement:IAccountStatement):AccountStatementTableData[] {
-    const tableData: AccountStatementTableData[] = [];
-      // Add a row for the opening balance
-          tableData.push({
-              transactionDate: accountStatement.getPurchaseOrderCreationDate,
-              transactionRemarks: accountStatement.getPurchaseOrderRemarks,
-              dr: accountStatement.getOpeningBalOnDRColumn,
-              cr: 0, // Assuming opening balance is always a debit (DR)
-              balance: accountStatement.getOpeningBalValue,
-            });
-      // Add rows for each remittance detail
-    if (accountStatement.remittanceCRDetails && accountStatement.remittanceCRDetails.length > 0) {
-              for (const remittanceDetail of accountStatement.remittanceCRDetails) {
-          tableData.push({
-              transactionDate: remittanceDetail.getRemittedAmountDate,
-              transactionRemarks: remittanceDetail.getRemittanceTransactionRemarks,
-              dr: 0, // Assuming remittances are always credits (CR)
-              cr: remittanceDetail.getRemittedAmountCR,
-              balance: calculateBalance(tableData, remittanceDetail.getRemittedAmountCR),
-            });
-          }
+        //16. remittanceStandardPO Component
+        const remittanceStandardPOData = await remittanceStandardPOModel.find({})
+        .populate({path:'', model:'StandardPurchaseOrder', select:'standardPurchaseOrderId'})
+        .populate({path:'', model:'PaymentClass', select:'paymentClassName'})
+        .exec();
+
+        //17. remittanceScheme Component
+        const remittanceSchemeData = await remittanceSchemeModel.find({})
+        .populate({path:'', model:'SchemeInformation', select:'schemeID'})
+        .populate({path:'', model:'PaymentClass', select:'paymentClassName'})
+        .exec();
+
+
+        //18. eCommerceProfile Component
+        const eCommerceProfileData = await eCommerceProfileModel.find({}).exec();
+
+        //19. Schema Component
+        const schemeInformationData = await schemeModel.find({})
+        .populate({model:'ItemInformation', path:'', select:'itemInformationName'})
+        .populate({model:'UOM', path:'', select:'unitofMeasureID'})
+        .exec();
+
+        //20. createUserScheme Component
+        const userSchemeData = await userSchemeModel.find({})
+        .populate({model:'SchemeInformationProfile', path:'', select:'schemeID'})
+        .exec();
+
+        //21. projectInformation Component
+        const Project214InformationModel = mongoose.model('Project214Information', project214Model);
+        const project214Data = await Project214InformationModel.find({})
+        .exec();
+
+        //22. paymentPlan Component
+        const paymentPlanData = await paymentPlanModel.find({})
+        .exec();
+
+       //23. SubscribeToProject214 Component
+        const subscribeToProject214Data = await subscribeToProject214Model.findById('subscribeP214OrderId')
+        .populate({model:'ActiveSubscriber', path:'subscribersActiveID', select:'fullName email' }) 
+        .populate({model:'Project214Information', path:'project214ID', select:'projectName location' }) 
+        .populate({model:'PaymentPlan', path:'paymentPlanID', select:'planName installmentAmount' }) 
+        .populate({model:'SubscribeToProject214',  path:'SubscribeToFractionsOfProject214', 
+          populate:{model:'FractionalUnit', path:'fractionalUnitID', select:'fractionalUnitName fractionUnitSalesPrice'}})
+        .exec();
+
+        //24. NairaWalletBalance Component
+        const nairaWalletBalanceData = await nairaWalletBalanceModel.find({})
+        .populate({model:'ActiveSubscriber', path:'', select:'activeUserFullName'})
+        .exec();
+
+      //---DEFAULT COMPONENTS ENDS HERE --//
+
+      //return the data from the database      
+      return {itemCategoryData, itemTypeData, itemSubTypeData, itemBrandData, eCommerceProfileData, unitOfMeasureData, itemInformationData, updateItemPriceData,
+          profiledPartnerData, paymentClassData, subscriptionTypeData, accountHolderData, activeSubscriberData, layAwayPurchaseOrderData, standardPurchaseOrderData,
+          remittanceLayAwayPOData, remittanceStandardPOData, remittanceSchemeData, schemeInformationData, userSchemeData, project214Data, paymentPlanData, subscribeToProject214Data, 
+          nairaWalletBalanceData};
+
+} catch (error) {
+    console.error('Error Fetching Data from MongoDB:', error);
+    return {error: 'An error occurred while fetching ProductBrand data from the database'};
+  }finally {
+        await mongoose.disconnect();
       }
-          return tableData;
-  }
-        interface AccountStatementTableData {
-          transactionDate: Date | null;
-          transactionRemarks: string;
-          dr: number;
-          cr: number;
-          balance: number;
-      }
-          function calculateBalance(tableData: AccountStatementTableData[], remittanceAmount: number):number {
-            let runningBalance = 0;
-            for (const data of tableData) {
-              runningBalance += data.cr - data.dr;
-            }
-            return runningBalance + remittanceAmount;
-          }
+};
 
-// return the data from the database      
-return{
-      itemCategoryData, itemTypeData, itemSubTypeData, itemBrandData, itemInformationData, updateItemPriceData, structureAccountStatementData,
-      profiledPartnerData, subscriptionTypeData, accountHolderData, activeUserData, purchaseOrderData, paymentClassData, remittanceData
-    };
-} 
-catch (error) {
-  console.error('Error Fetching Data from MongoDB:', error);
-  return {error: 'An error occurred while fetching ProductBrand data from the database'};
-}
-  finally {
-    await mongoose.disconnect();
-  }
-}
+//ComponentLoader to load custom components
+const componentLoader = new ComponentLoader();
+const Components = {Dashboard:componentLoader.add('Dashboard', './Dashboard')};
+const fractionalUnitsComponent = componentLoader.add("FractionalUnitsList", './admin/customComponents/FractionalUnitsList');
 
-// Handles SideBar Navigation Pattern
-const businessNavigation = {name:'Business Profile', icon:'transaction'}
-const customersNavigation = {name:'Customers Profile', icon:'customer'}
-const itemsNavigation = {name:'Item Profile', icon:'item'}
-const realEstateNavigation = {name:'Real Estate Profile', icon:'properties'}
-const transactionsNavigation = {name:'Transaction Profile', icon:'payment'}
+//Handles SideBar Navigation Pattern
+const businessNavigation = {name:'Business Profile', icon:'transaction'};
+const customersNavigation = {name:'Customers Profile', icon:'customer'};
+const itemsNavigation = {name:'Item Profile', icon:'item'};
+const fractionalOwnership = {name:'F.O.R.E.A Profile', icon:'properties'};
+const updateNavigation = {name:'Update Profile', icon:'update'};
+const transactionsNavigation = {name:'Transaction Profile', icon:'payment'};
+const remittanceNavigation = {name:'Remittance Profile', icon:'remittance'};
+const WalletNavigation = {name:'Wallet Profile', icon:'wallet'};
 
-//Handles All Resources- database, assets, components, etc.
+//Setup AdminJS || handles all resources- database,assets,components, etc.
 const admin = new AdminJS({
-    databases: [mongooseDB],
-    rootPath: '/admin',
-    assets: {styles:["/sidebar.css"]},
-    resources:[
-      {resource:ProfiledPartner, options:{navigation:businessNavigation, id:'ProfiledPartner', search:{type:String, isVisible:{filter:true}}}},
-      {resource:SubscriptionType, options:{navigation:businessNavigation, id:'SubscriptionType', search:{type:String, isVisible:{filter:true}}}},
-      {resource:PaymentClass, options:{navigation:businessNavigation, id:'PaymentClass', search:{type:String, isVisible:{filter:true}}}},
-      {resource:AccountHolder, options:{navigation:customersNavigation, id:'AccountHolder', search:{type:String, isVisible:{filter:true}}}},
-      {resource:ActiveUser, options:{navigation:customersNavigation, id:'ActiveUser', search:{type:String, isVisible:{filter:true}}}},
-      {resource:ItemCategory, options:{navigation:itemsNavigation, id:'ItemCategory', search:{type:String, isVisible:{filter:true}}}},
-      {resource:ItemBrand, options:{navigation:itemsNavigation, id:'ItemBrand', search:{type:String, isVisible:{filter:true}}}},
-      {resource:ItemType, options:{navigation:itemsNavigation, id:'ItemType', search:{type:String, isVisible:{filter:true}}}},
-      {resource:ItemSubType, options:{navigation:itemsNavigation, id:'ItemSubType', search:{type:String, isVisible:{filter:true}}}},
-      {resource:ItemInformation, options:{navigation:itemsNavigation, id:'ItemInformation', search:{type:String, isVisible:{filter:true}}}},
-      {resource:UpdateItemPrice, options:{navigation:itemsNavigation, id:'UpdateItemPrice', search:{type:String, isVisible:{filter:true}}}},
-      {resource:PurchaseOrder, options:{navigation:transactionsNavigation, id:'PurchaseOrder', search:{type:String, isVisible:{filter:true}}}},
-      {resource:Remittance, options:{navigation:transactionsNavigation, id:'Remittance', search:{type:String, isVisible:{filter:true}}}},
-      {resource:AccountStatement, options:{navigation:transactionsNavigation, id:'AccountStatement', search:{type:String, isVisible:{filter:true}}}},
+  databases: [mongooseDB],
+  rootPath: '/admin',
+  branding: {companyName:'AssetLoop Nigeria Limited'},
+  assets: {styles:["/sidebar.css"]},
+  resources:[
+    {resource:ProfiledPartner, options:{navigation:businessNavigation, id:'ProfiledPartner', search:{type:String, isVisible:{filter:true}}}},
+    {resource:SubscriptionType, options:{navigation:businessNavigation, id:'SubscriptionType', search:{type:String, isVisible:{filter:true}}}},
+    {resource:PaymentClass, options:{navigation:businessNavigation, id:'PaymentClass', search:{type:String, isVisible:{filter:true}}}},
+    {resource:PaymentPlan, options:{navigation:businessNavigation, id:'PaymentPlan', search:{type:String, isVisible:{filter:true}}}},
+    {resource:UOM, options:{navigation:businessNavigation, id:'UOM', search:{type:String, isVisible:{filter:true}}}},
+    {resource:AccountSubscriber, options:{navigation:customersNavigation, id:'AccountSubscriber', search:{type:String, isVisible:{filter:true}}}},
+    {resource:ActiveSubscriber, options:{navigation:customersNavigation, id:'ActiveSubscriber', search:{type:String, isVisible:{filter:true}}}},
+    {resource:ItemCategory, options:{navigation:itemsNavigation, id:'ItemCategory', search:{type:String, isVisible:{filter:true}}}},
+    {resource:ItemBrand, options:{navigation:itemsNavigation, id:'ItemBrand', search:{type:String, isVisible:{filter:true}}}},
+    {resource:ItemType, options:{navigation:itemsNavigation, id:'ItemType', search:{type:String, isVisible:{filter:true}}}},
+    {resource:ItemSubType, options:{navigation:itemsNavigation, id:'ItemSubType', search:{type:String, isVisible:{filter:true}}}},
+    {resource:ECommerceProfile, options:{navigation:itemsNavigation, id:'ECommerceProfile', search:{type:String, isVisible:{filter:true}}}},
+    {resource:ItemInformation, options:{navigation:itemsNavigation, id:'ItemInformation', search:{type:String, isVisible:{filter:true}}}},
+    {resource:SchemeInformation, options:{navigation:itemsNavigation, id:'SchemeInformation', search:{type:String, isVisible:{filter:true}}}},
+    {resource:Project214Information, options:{navigation:fractionalOwnership, id:'Project214Information', search:{type:String, isVisible:{filter:true}}, properties:{project214AvailableFractionalUnitsList: {}}}},
+    {resource:UpdateItemPrice, options:{navigation:updateNavigation, id:'UpdateItemPrice', search:{type:String, isVisible:{filter:true}}, actions:{edit:false, delete:false}}},
+    {resource:UpdateScheme, options:{navigation:updateNavigation, id:'UpdateScheme', search:{type:String, isVisible:{filter:true}}}},
+    {resource:LayAwayPurchaseOrder, options: {navigation:transactionsNavigation, id:'LayAwayPurchaseOrder', search:{type:String, isVisible:{filter:true}}}},
+    {resource:StandardPurchaseOrder, options: {navigation:transactionsNavigation, id:'StandardPurchaseOrder', search:{type:String, isVisible:{filter:true}}}},
+    {resource:UserScheme, options:{navigation:transactionsNavigation, id:'UserScheme', search:{type:String, isVisible:{filter:true}}}},
+//     {resource:SubscribeToProject214, 
+//       options:{
+//         navigation:transactionsNavigation, 
+//         id:'SubscribeToProject214', 
+//         search:{type:String, isVisible:{filter:true}},
+//         properties: {
+//           projectTheSubscriberIsInterestedIn: {
+//             type:'reference',
+//             reference:'Project214Information',
+//             isRequired:true, 
+//             isVisible:{list:true, show:true, edit:true, filter:true},
+//           },
+//         SubscribeToFractionsOfProject214:{
+//           type:'mixed', 
+//           isArray:true, 
+//           components:{
+//             list:fractionalUnitsComponent, 
+//             show:fractionalUnitsComponent, 
+//             edit:fractionalUnitsComponent, 
+//             new:fractionalUnitsComponent
+//             }
+//           },
+//           projectFractionalUnitsTotalSalePrice: {
+//             type: 'number',
+//             isVisible: {list:true, show:true, edit:false, new:false},
+//           },
+//         },
+//         actions: {
+//         //✅Populate SubscribeToFractionsOfProject214 dynamically before showing
+//         list: {
+//           before: async (request) => {
+//             console.log("Request Query:", request.query);
+//             //If projectTheSubscriberIsInterestedIn is not in the query, set a default value
+//             if (request.query.projectTheSubscriberIsInterestedIn) {
+//               const availableUnits = await getAvailableFractionalUnits(request.query.projectTheSubscriberIsInterestedIn);
+//               console.log("Available Units in List Before Hook:", availableUnits); // Log the fetched units
+//               request.query.availableFractionalUnits = availableUnits;
+//             } else {
+//               console.warn("projectTheSubscriberIsInterestedIn is undefined in request.query");
+//             }
+//             return request;
+//           },
+//         },
+//         show: {
+//           after: async (response) => {
+//             const record = response.record;
+//             console.log("Record Params:", record?.params); 
+//             if (record?.params?.projectTheSubscriberIsInterestedIn) {
+//               const availableUnits = await getAvailableFractionalUnits(
+//                 record.params.projectTheSubscriberIsInterestedIn,
+//                 record.params.SubscribeToFractionsOfProject214?.map((unit) => unit.fractionalUnitID) || []);
+//                 console.log("Available Units in Show After Hook:", availableUnits); // Log the fetched units
+//                 record.params.availableFractionalUnits = availableUnits;
+//             } else {
+//               console.warn("projectTheSubscriberIsInterestedIn is undefined in record.params");
+//             }
+//             return response;
+//           },
+//         },
+//         edit: {
+//           after: async (response) => {
+//             const record = response.record;
+//             console.log("Record Params:", record?.params); // Debugging
+//             if (record?.params?.projectTheSubscriberIsInterestedIn) {
+//               const availableUnits = await getAvailableFractionalUnits(
+//                 record.params.projectTheSubscriberIsInterestedIn,
+//                 record.params.SubscribeToFractionsOfProject214?.map((unit) => unit.fractionalUnitID) || []);
+//                 console.log("Available Units in Edit After Hook:", availableUnits); // Log the fetched units
+//               record.params.availableFractionalUnits = availableUnits;
+//             } else {
+//               console.warn("projectTheSubscriberIsInterestedIn is undefined in record.params");
+//             }
+//             return response;
+//           },
+//         },
+//         new: {
+//           before: async (request) => {
+//             console.log("Request Payload:", request.payload);
+//             if (request.payload.projectTheSubscriberIsInterestedIn) {
+//               const availableUnits = await getAvailableFractionalUnits(request.payload.projectTheSubscriberIsInterestedIn);
+//               console.log("Available Units in New Before Hook:", availableUnits); // Log the fetched units
+//               request.payload.availableFractionalUnits = availableUnits;
+//             } else {
+//               console.warn("projectTheSubscriberIsInterestedIn is undefined in request.payload");
+//             }
+//             return request;
+//           },
+//         },
+//     },
+//   },
+// },
+{resource: SubscribeToProject214,
+  options: {
+    navigation:transactionsNavigation, 
+    id:'SubscribeToProject214', 
+    search:{type:String, isVisible:{filter:true}},
+    properties: {
+      projectTheSubscriberIsInterestedIn: {
+        type:'reference',
+        reference:'Project214Information',
+        isRequired:true, 
+        isVisible:{list:true, show:true, edit:true, filter:true},
+      },
+      selectedUnits: {
+        isVisible: {
+          list: false, // Hide in the list view
+          edit: true,  // Show in the edit view
+          show: true,  // Show in the show view
+          filter: false, // Hide in the filter
+        },
+        components: {
+          edit: UnitSelectionComponent, // Use the custom component for the edit view
+          show: UnitSelectionComponent, // Use the custom component for the show view
+        },
+      },
+    },
+    actions: {
+      new: {
+        before: async (request) => {
+          console.log('📢 Request Query:', request.query);
+          console.log('📢 Request Params:', request.params);
+          console.log('📢 Request Record:', request.record);
+        
+          let projectShortId = request.query?.projectShortId;
+        
+          if (!projectShortId) {
+            console.error('❌ Error: Project ID is missing in the request query.');
+            throw new Error('Project ID is required to create a subscription. Ensure the request includes ?projectShortId=<ID>');
+          }
+        
+          const projectId = new mongoose.Types.ObjectId(projectShortId);
+          request.availableUnits = await fetchAvaiilableFractionalUnits(projectId);
+          return request;
+        }
+      },        
+      edit: {
+        before: async (request) => {
+          console.log('📢 Request Query:', request.query);
+          console.log('📢 Request Params:', request.params);
+          console.log('📢 Request Record:', request.record);
+        
+          let projectShortId = request.query?.projectShortId;
+        
+          if (!projectShortId) {
+            console.error('❌ Error: Project ID is missing in the request query.');
+            throw new Error('Project ID is required to create a subscription. Ensure the request includes ?projectShortId=<ID>');
+          }
+        
+          const projectId = new mongoose.Types.ObjectId(projectShortId);
+          request.availableUnits = await fetchAvaiilableFractionalUnits(projectId);
+          return request;
+            }
+          },
+        },
+      },
+    },
+    {resource:RemittanceOnLayAwayPO, options:{navigation:remittanceNavigation, id:'RemittanceOnLayAwayPO', search:{type:String, isVisible:{filter:true}}}},
+    {resource:RemittanceOnStandardPO, options:{navigation:remittanceNavigation, id:'RemittanceOnStandardPO', search:{type:String, isVisible:{filter:true}}}},
+    {resource:RemitOnScheme, options:{navigation:remittanceNavigation, id:'RemitOnScheme', search:{type:String, isVisible:{filter:true}}}},
+    {resource:NairaWalletBalance, options:{navigation:WalletNavigation, id:'NairaWalletBalance', search:{type:String, isVisible:{filter:true}}}},
     ],
-    dashboard:{component:Components.Dashboard, handler:dashboardHandler},
-    componentLoader
-  });
-admin.watch()
+    dashboard: {component:Components.Dashboard, handler:dashboardHandler},
+    componentLoader,
+});
+//watch the AdminJS instance
+admin.watch();
 
 //Router
-const adminRouter = AdminJSExpress.buildAuthenticatedRouter(
-    admin,
-    {
-      authenticate,
-      cookieName: 'adminjs',
-      cookiePassword: 'sessionsecret',
-    },
-    null,
-    {
-      store: sessionStore,
-      resave: true,
-      saveUninitialized: true,
-      secret: 'sessionsecret',
-      cookie: {
-        httpOnly: process.env.NODE_ENV === 'production',
-        secure: process.env.NODE_ENV === 'production',
-      },
-      name: 'adminjs',
-    }
-  )
+const adminRouter = AdminJSExpress.buildAuthenticatedRouter(admin, {authenticate, cookieName:'adminjs', cookiePassword:'sessionsecret'}, null,
+    {store:sessionStore, resave:true, saveUninitialized:true, secret:'sessionsecret', 
+    cookie:{httpOnly: process.env.NODE_ENV === 'production', secure: process.env.NODE_ENV === 'production'},
+    name:'adminjs',
+});
 
-// Middleware for the root Router
+//Middleware for the Root Router
+app.use(express.json());
 app.use(admin.options.rootPath, adminRouter)
 
-// Define the route for fetching full user profiles 
-app.get('/api/userfullprofile', getUserProfiles);
+//Use the purchaseOrder route (sets up the Express server & connects it to MongoDB. It also mounts the route to the /api endpoint).
+app.use('/api', lawAwayPurchaseOrderRouter);
 
-// Creating the Account Statement Route
-// app.get('/admin/accountstatement', async (req:Request, res:Response) => {
-//   try {
-//     const accountStatements = await AccountStatement.find()
-//       .populate('accountNumber')
-//       .populate('accountStatPurchaseOrder')
-//       .populate('acctStatPayTranReference')
-//       .exec();
+//Use the standardPurchaseOrder route (sets up the Express server & connects it to MongoDB. It also mounts the route to the /api endpoint).
+app.use('/api', standardPurchaseOrderRouter);
 
-//     console.log('Account Statements:', accountStatements);
+//Use the scheme information route (sets up the Express server & connects it to MongoDB. It also mounts the route to the /api endpoint).
+app.use('/api', schemeInformationRouter);
 
-//     res.send(`
-//       <html>
-//         <head>
-//           <title>Asset360 Account Statement</title>
-//           <script src="https://cdn.jsdelivr.net/npm/adminjs@latest/dist/esm/adminjs.bundle.min.js"></script>
-//         </head>
-//         <style>
-//           table, th, td {
-//             border: 1px solid black;
-//           }
-//         </style>
-//         <body>
-          
-//         </body>
-//       </html>
-//     `);
-//   } catch (error) {
-//     console.error('Error fetching bank statements:', error);
-//     res.status(500).send('Error fetching bank statements');
-//   }
+//Use the userScheme route (sets up the Express server & connects it to MongoDB. It also mounts the route to the /api endpoint).
+app.use('/api', userSchemeRouter);
+
+//Use the project214 route (sets up the Express server & connects it to MongoDB. It also mounts the route to the /api endpoint).
+app.use('/api', Project214Router);
+
+//Use the paymentPlan route (sets up the Express server & connects it to MongoDB. It also mounts the route to the /api endpoint).
+app.use('/api', paymentPlanRouter);
+
+//Define the route for fetching subscription to Project214
+app.use('/api', subscribeToProject214Router);
+
+//Define the route for fetching nairaWallet
+app.use('/api', nairaWalletRouter);
+  
+//Register the route for fetching full user profiles 
+app.use('/api/userfullprofile', getUserProfiles);
+
+//Set up view engine
+app.set('view engine', 'ejs');
+//Set the views directory
+console.log('Views directory:', path.join(__dirname, 'views'));
+app.set('views', path.join(__dirname, 'views'));
+
+//Method 1:Enable Mongoose debugging to get detailed logs about the validation errors
+//mongoose.set('debug', true);
+
+//Method 2:Enable Mongoose debugging to get detailed logs about the validation errors
+// mongoose.set("debug", function (collectionName, method, query, doc) {
+//   console.log(`🚀 Mongoose Query - ${method.toUpperCase()} on ${collectionName}`);
+//   console.log("🔍 Query:", JSON.stringify(query, null, 2));
+//   console.log("📄 Document:", JSON.stringify(doc, null, 2));
 // });
 
+
 //Start the Server
-app.listen(PORT, () => {
-    console.log(`AdminJS started on http://localhost:${PORT}${admin.options.rootPath}`)
-  })
-}
-start()
+app.listen(PORT, () => {console.log(`AdminJS started on http://localhost:${PORT}${admin.options.rootPath}`)})};
+start();
 
-
-function insertNewUpdateItemPrice() {
-  throw new Error('Function not implemented.');
-}
 

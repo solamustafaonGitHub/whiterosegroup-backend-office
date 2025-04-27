@@ -4,5 +4,9 @@ const itemTypeSchema = new Schema({
     createdAt: { type: Date, default: Date.now },
     lastUpdatedAt: { type: Date, default: Date.now }
 });
+itemTypeSchema.pre('save', function (next) {
+    this.lastUpdatedAt = new Date();
+    next();
+});
 const ItemType = mongoose.model('ItemType', itemTypeSchema);
 export { ItemType };

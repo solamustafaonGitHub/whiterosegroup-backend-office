@@ -1,15 +1,15 @@
-import { ActiveUser } from '../models/activeUser.model.js';
+import { ActiveSubscriber } from '../models/activeSubscriber.model.js';
 const getUserProfiles = async (req, res) => {
     try {
-        const userProfiles = await ActiveUser.find().exec();
+        const userProfiles = await ActiveSubscriber.find().exec();
         const transformedProfiles = userProfiles.map(profile => ({
-            id: profile.activeUserID,
-            fullName: profile.activeUserFirstName,
-            email: profile.activeUserEmail,
-            phoneNo: profile.activeUserPhoneNo,
-            gender: profile.activeUserGender,
-            workStatus: profile.activeUserWorkStatus,
-            deliveryAddress: profile.activeUserAssetDeliveryAddress,
+            id: profile.activeSubscriberID,
+            fullName: profile.activeSubscriberFirstName,
+            email: profile.activeSubscriberEmail,
+            phoneNo: profile.activeSubscriberPhoneNo,
+            gender: profile.activeSubscriberGender,
+            workStatus: profile.activeSubscriberWorkStatus,
+            deliveryAddress: profile.activeSubscriberAssetDeliveryAddress,
         }));
         res.status(200).json(transformedProfiles);
     }

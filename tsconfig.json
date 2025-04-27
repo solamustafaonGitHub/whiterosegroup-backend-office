@@ -3,9 +3,11 @@
     "files": true
   },
   "compilerOptions": {
-    "jsx": "react",   
+    "jsx": "react", 
+    "lib": ["ES2021"],  
     "module": "nodenext",    
-    "moduleResolution": "nodenext",       
+    "moduleResolution": "nodenext",     
+    "strict": false,  
     "declaration": false,                             
     "removeComments":true,
     "emitDecoratorMetadata":true,
@@ -15,12 +17,21 @@
     "target": "esNext",
     "sourceMap": false,
     "outDir": "./dist",
-    "baseUrl": "./",
+    "baseUrl": ".",
+    "paths":{
+      "@src/*": ["src/*"]
+    },
     "incremental": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "typeRoots": ["node_modules/@types"]
   },
   "exclude": ["node_modules"],
-  "include": ["./src/**/*.ts"]
+  "include": ["./src/**/*.ts", "src/components/pdfgenerator.component.tsx", "src/components/FractionalUnitsList.component.tsx", "src/admin/customComponents/UnitSelectionComponent.tsx"],
+  "scripts": {
+  "build": "tsc && npm run copy-views",
+  "copy-views": "cp -r src/views dist"
 }
+}
+

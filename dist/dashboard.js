@@ -8,17 +8,6 @@ import DiscordLogo from './utils/discord-logo-svg.js';
 const pageHeaderHeight = 300;
 const pageHeaderPaddingY = 74;
 const pageHeaderPaddingX = 250;
-const [data, setData] = useState(null);
-const api = new ApiClient();
-useEffect(() => {
-    api.getDashboard()
-        .then((response) => {
-        setData(response.data);
-    })
-        .catch((error) => {
-    });
-}, []);
-console.log(data.message);
 export const DashboardHeader = () => {
     const { translateMessage } = useTranslation();
     return (React.createElement(Box, { "data-css": "default-dashboard" },
@@ -92,6 +81,22 @@ Card.defaultProps = {
 };
 export const Dashboard = () => {
     const { translateMessage, translateButton } = useTranslation();
+    const [data, setData] = useState(null);
+    const api = new ApiClient();
+    useEffect(() => {
+        api.getDashboard()
+            .then((response) => {
+            setData(response.data);
+        })
+            .catch((error) => {
+            console.error(error);
+        });
+    }, []);
+    useEffect(() => {
+        if (data) {
+            console.log(data.message);
+        }
+    }, [data]);
     return (React.createElement(Box, null,
         React.createElement(DashboardHeader, null),
         React.createElement(Box, { mt: ['xl', 'xl', '-100px'], mb: "xl", mx: [0, 0, 0, 'auto'], px: ['default', 'lg', 'xxl', '0'], position: "relative", flex: true, flexDirection: "row", flexWrap: "wrap", width: [1, 1, 1, 1024] },

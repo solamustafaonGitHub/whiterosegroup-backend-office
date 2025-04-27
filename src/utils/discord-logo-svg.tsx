@@ -33,5 +33,5 @@ const DiscordLogo: React.FC = () => (
   </svg>
 )
 
-export { DiscordLogo }
+export {DiscordLogo}
 export default DiscordLogo

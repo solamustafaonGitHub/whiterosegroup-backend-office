@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transaction Table</title>
+    <style>
+        table, th, td {
+            border: 1px solid black;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <h1>Transaction Table</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Transaction Date</th>
+                <th>Transaction Remarks</th>
+                <th>DR</th>
+                <th>CR</th>
+                <th>Balance</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% transactions.forEach(transaction => { %>
+                <tr>
+                    <td><%= transaction.transactionDate %></td>
+                    <td><%= transaction.transactionRemarks %></td>
+                    <td><%= transaction.DR %></td>
+                    <td><%= transaction.CR %></td>
+                    <td><%= transaction.balance %></td>
+                </tr>
+            <% }) %>
+        </tbody>
+    </table>
+</body>
+</html>

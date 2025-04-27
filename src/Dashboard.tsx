@@ -85,18 +85,20 @@ const boxes = ({ translateMessage }: { translateMessage: (message: string) => st
   },
 ];
 
+import { DefaultTheme } from 'styled-components';
+
 const Card = styled(Box)<{ flex?: boolean }>`
-  display: ${({ flex }): string => (flex ? 'flex' : 'block')};
-  color: ${({ theme }) => theme.colors.grey100};
+  display: ${({ flex }: { flex?: boolean }): string => (flex ? 'flex' : 'block')};
+  color: ${({ theme }: { theme: DefaultTheme }) => theme.colors.grey100};
   height: 100%;
   text-decoration: none;
   border: 1px solid transparent;
-  border-radius: ${({ theme }) => theme.space.md};
+  border-radius: ${({ theme }: { theme: DefaultTheme }) => theme.space.md};
   transition: all 0.1s ease-in;
 
   &:hover {
-    border: 1px solid ${({ theme }) => theme.colors.primary60};
-    box-shadow: ${({ theme }) => theme.shadows.cardHover};
+    border: 1px solid ${({ theme }: { theme: DefaultTheme }) => theme.colors.primary60};
+    box-shadow: ${({ theme }: { theme: DefaultTheme }) => theme.shadows.cardHover};
   }
 
   & .dsc-icon svg, .gh-icon svg {
