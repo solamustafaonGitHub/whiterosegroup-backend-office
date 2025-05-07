@@ -36,7 +36,8 @@ const StandardPurchaseOrderSchema = new Schema({
             PriceChangeOnStandardPOHistoryDetails: [{
                     priceChangeOnStandardPODate: { type: Date, default: Date.now },
                     priceChangeOnStandardPORemarks: { type: String },
-                    newPriceAmountOnStandardPO: { type: Number },
+                    newUnitPriceAmountOnStandardPO: { type: Number },
+                    newTotalPriceAmountOnStandardPO: { type: Number },
                     priceAdjustmentAppliedOnStandardPO: { type: Boolean, default: false }
                 }],
             PriceReverseAlertDetailsOnStandardPO: [{
@@ -175,7 +176,8 @@ StandardPurchaseOrderSchema.pre('save', async function (next) {
                     item.PriceChangeOnStandardPOHistoryDetails.push({
                         priceChangeOnStandardPODate: this.createdAt,
                         priceChangeOnStandardPORemarks: `Start Balance | Item ID: ${item.standardPurchaseOrderIntentID} || ${item.standardPurchaseOrderIntentItemCode} || ${item.standardPurchaseOrderIntentItemName} || ${item.standardPurchaseOrderNoOfUnitBought}${item.standardPurchaseOrderUnitOfMeasure} @${formatCurrency(item.standardPurchaseOrderUnitPrice)} each`,
-                        newPriceAmountOnStandardPO: item.standardPurchaseOrderTotalStartPrice,
+                        newUnitPriceAmountOnStandardPO: item.standardPurchaseOrderUnitPrice,
+                        newTotalPriceAmountOnStandardPO: item.standardPurchaseOrderTotalStartPrice,
                         priceAdjustmentAppliedOnStandardPO: false,
                         cumulativeBalance: item.standardPurchaseOrderTotalStartPrice,
                     });
@@ -208,7 +210,7 @@ StandardPurchaseOrderSchema.pre('save', async function (next) {
         if (items.length === 0)
             return next();
         const currentItemTotals = items.map(item => {
-            const latestPrice = item.PriceChangeOnStandardPOHistoryDetails?.slice(-1)[0]?.newPriceAmountOnStandardPO
+            const latestPrice = item.PriceChangeOnStandardPOHistoryDetails?.slice(-1)[0]?.newUnitPriceAmountOnStandardPO
                 ?? item.standardPurchaseOrderTotalStartPrice
                 ?? 0;
             const quantity = item.standardPurchaseOrderNoOfUnitBought ?? 1;
@@ -225,7 +227,7 @@ StandardPurchaseOrderSchema.pre('save', async function (next) {
         let hasAnyItemChanged = false;
         items.forEach((currentItem, index) => {
             const previousItem = previousItems[index];
-            const previousPrice = previousItem?.PriceChangeOnStandardPOHistoryDetails?.slice(-1)[0]?.newPriceAmountOnStandardPO
+            const previousPrice = previousItem?.PriceChangeOnStandardPOHistoryDetails?.slice(-1)[0]?.newUnitPriceAmountOnStandardPO
                 ?? previousItem?.standardPurchaseOrderTotalStartPrice
                 ?? 0;
             const previousQty = previousItem?.standardPurchaseOrderNoOfUnitBought ?? 1;

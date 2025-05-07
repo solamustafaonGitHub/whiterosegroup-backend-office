@@ -5,10 +5,10 @@ import * as url from 'url';
 import formatCurrency from "../utils/formatCurrency.utils.js";
 import formatDateTime from "../utils/formatDateTime.utils.js";
 import { StandardPurchaseOrder } from '../models/standardPurchaseOrder.model.js';
-;
-;
 import pkg from 'pdfkit';
 const { x, y } = pkg;
+;
+;
 ;
 ;
 ;
@@ -198,58 +198,18 @@ async function generateStandardPurchaseOrderPDF(outputFilePath, standardPO) {
         }
         ;
         drawSectionBHeaderRow();
-        function calculateBalance(event, standardPO) {
-            if (!event || !event.type || !standardPO) {
-                console.error('Invalid arguments: Event and Standard Purchase Order are required');
-                return 0;
-            }
-            let totalBalance = 0;
-            switch (event.type) {
-                case 'Remittance': {
-                    const matchingRemittance = standardPO.StandardPurchaseOrderItems
-                        .flatMap((item) => item.RemittanceBalanceToBePaidDetailsOnStandardPO)
-                        .find((remittance) => remittance.remitDateOnStandardPO && new Date(remittance.remitDateOnStandardPO).getTime() === new Date(event.data.remitDateOnStandardPO).getTime());
-                    totalBalance = matchingRemittance?.endingBalanceAfterLastRemittanceOnStandardPO || 0;
-                    break;
-                }
-                case 'LastCredit': {
-                    const { purchaseOrderReverseDateOnStandardPO } = event.data;
-                    const lastRemittance = standardPO.StandardPurchaseOrderItems
-                        .flatMap((item) => 'TotalRemittanceMadeSoFarOnStandardPO' in item ? item.TotalRemittanceMadeSoFarOnStandardPO : [])
-                        .filter((remittance) => remittance.remittedDateOnStandardPO && new Date(remittance.remittedDateOnStandardPO) < new Date(purchaseOrderReverseDateOnStandardPO))
-                        .slice(-1)[0];
-                    if (lastRemittance && typeof lastRemittance === 'object' && 'TotalPaymentsMadeSoFarOnStandardPO' in lastRemittance) {
-                        totalBalance = parseFloat(lastRemittance.TotalPaymentsMadeSoFarOnStandardPO?.toString() || '0');
-                    }
-                    else {
-                        totalBalance = 0;
-                    }
-                    break;
-                }
-                case 'PriceChange':
-                case 'PriceAtBookingPO': {
-                    totalBalance = event.data.cumulativeBalance || 0;
-                    break;
-                }
-                default: {
-                    console.warn('Unrecognized event type:', event.type);
-                    break;
-                }
-            }
-            return totalBalance;
-        }
         function drawSectionBTransactionRows(values, event, standardPO, columnWidths, headersSectionB) {
             let currentX = tableX;
             let maxRowHeight = 0;
             if (event.type === 'Remittance' && values[3] === '0') {
                 return;
             }
-            const balance = calculateBalance(event, standardPO);
-            const safeBalance = isNaN(balance) ? 0 : balance;
-            const formattedBalance = formatCurrency(safeBalance);
-            values[4] = formattedBalance;
             values.forEach((value, index) => {
-                const textHeight = doc.font('Helvetica').fontSize(7.5).heightOfString(value || '', { width: columnWidths[index] - 20, align: 'left', lineBreak: true });
+                const textHeight = doc.font('Helvetica').fontSize(7.5).heightOfString(value || '', {
+                    width: columnWidths[index] - 20,
+                    align: 'left',
+                    lineBreak: true,
+                });
                 maxRowHeight = Math.max(maxRowHeight, textHeight + 7);
             });
             const availableSpace = doc.page.height - tableY - doc.page.margins.bottom;
@@ -259,7 +219,7 @@ async function generateStandardPurchaseOrderPDF(outputFilePath, standardPO) {
                 drawSectionBHeaderRow();
             }
             values.forEach((value, index) => {
-                if (index === 4 && balance < 0) {
+                if (index === 4 && typeof value === 'string' && value.includes('(')) {
                     doc.fillColor('red');
                 }
                 else {
@@ -273,28 +233,51 @@ async function generateStandardPurchaseOrderPDF(outputFilePath, standardPO) {
         }
         function sortTransactionsByDateAndTime(standardPO) {
             const events = [];
-            standardPO.StandardPurchaseOrderItems.forEach((item) => {
-                if (item.PriceReverseAlertDetailsOnStandardPO) {
-                    item.PriceReverseAlertDetailsOnStandardPO.forEach((detail) => {
-                        events.push({ type: 'LastCredit', data: detail });
+            standardPO.StandardPurchaseOrderItems.forEach((item, itemIndex) => {
+                item.PriceChangeOnStandardPOHistoryDetails?.forEach((detail) => {
+                    events.push({
+                        type: 'PriceChange',
+                        date: new Date(detail.priceChangeOnStandardPODate),
+                        data: detail,
+                        itemIndex,
                     });
-                }
-                if (item.PriceChangeOnStandardPOHistoryDetails) {
-                    item.PriceChangeOnStandardPOHistoryDetails.forEach((detail, index) => {
-                        const eventType = index === 0 ? 'PriceAtBookingPO' : 'PriceChange';
-                        events.push({ type: eventType, data: detail });
+                });
+                item.PriceReverseAlertDetailsOnStandardPO?.forEach((detail) => {
+                    events.push({
+                        type: 'LastCredit',
+                        date: new Date(detail.standardPOReverseDate),
+                        data: detail,
+                        itemIndex,
                     });
-                }
-                if (item.RemittanceBalanceToBePaidDetailsOnStandardPO) {
-                    item.RemittanceBalanceToBePaidDetailsOnStandardPO.forEach((detail) => {
-                        events.push({ type: 'Remittance', data: detail });
+                });
+                item.RemittanceBalanceToBePaidDetailsOnStandardPO?.forEach((detail) => {
+                    events.push({
+                        type: 'Remittance',
+                        date: new Date(detail.remitDateOnStandardPO ||
+                            detail.remitDateOnStandardPO ||
+                            detail.priceChangeOnStandardPODate),
+                        data: detail,
+                        itemIndex,
                     });
-                }
+                });
             });
+            standardPO.TotalRemittanceMadeSoFarOnStandardPO?.forEach((entry) => {
+                events.push({
+                    type: 'Remittance',
+                    date: new Date(entry.remittedDateOnStandardPO || entry.remitDateOnStandardPO),
+                    data: entry,
+                });
+            });
+            const priority = {
+                LastCredit: 0,
+                PriceChange: 1,
+                Remittance: 2,
+            };
             events.sort((a, b) => {
-                const dateA = a.data.priceChangeOnStandardPODate || a.data.standardPOReverseDate || a.data.remitDateOnStandardPO || 0;
-                const dateB = b.data.priceChangeOnStandardPODate || b.data.standardPOReverseDate || b.data.remitDateOnStandardPO || 0;
-                return new Date(dateA).getTime() - new Date(dateB).getTime();
+                const timeDiff = a.date.getTime() - b.date.getTime();
+                if (timeDiff !== 0)
+                    return timeDiff;
+                return (priority[a.type] ?? 99) - (priority[b.type] ?? 99);
             });
             return events;
         }
@@ -323,42 +306,71 @@ async function generateStandardPurchaseOrderPDF(outputFilePath, standardPO) {
         function handleStandardPurchaseOrderForPDF(standardPO) {
             console.log(`Searching for Standard Purchase Order with ID: ${standardPO.standardPurchaseOrderId}`);
             let cumulativeBalance = 0;
-            const sortedEvents = sortTransactionsByDateAndTime(standardPO);
             let currentItemIndex = 0;
+            const sortedEvents = sortTransactionsByDateAndTime(standardPO);
             sortedEvents.forEach((event) => {
                 let rowValues = [];
                 let shouldIncludeRow = true;
-                if (event.type === 'LastCredit') {
-                    const { standardPOReverseDate, standardPOReverseNewPriceAlertRemarks, standardPOReverseOldPrice } = event.data;
-                    const lastTotalRemittance = standardPO.StandardPurchaseOrderItems
-                        .flatMap((item) => item.TotalRemittanceMadeSoFarOnStandardPO)
-                        .filter((remittance) => remittance.remittedDateOnStandardPO && new Date(remittance.remittedDateOnStandardPO) < new Date(standardPOReverseDate))
-                        .slice(-1)[0];
-                    const creditAmount = parseFloat(lastTotalRemittance?.TotalPaymentsMadeSoFarOnStandardPO?.toString() || '0');
-                    cumulativeBalance += creditAmount;
-                    rowValues = [
-                        formatDateTime(standardPOReverseDate),
-                        standardPOReverseNewPriceAlertRemarks ?? 'N/A',
-                        '',
-                        formatCurrency(parseFloat(standardPOReverseOldPrice?.toString() || '0')),
-                        formatCurrency(cumulativeBalance),
-                    ];
-                }
-                else if (event.type === 'PriceAtBookingPO' || event.type === 'PriceChange') {
-                    const currentItem = standardPO.StandardPurchaseOrderItems[currentItemIndex];
-                    cumulativeBalance += -(currentItem.standardPurchaseOrderTotalStartPrice) || 0;
-                    event.data.cumulativeBalance = cumulativeBalance;
-                    rowValues = [
-                        formatDateTime(event.data.priceChangeOnStandardPODate),
-                        event.data.priceChangeOnStandardPORemarks ?? 'N/A',
-                        formatCurrency(parseFloat(event.data.newPriceAmountOnStandardPO?.toString() || '0')),
-                        '',
-                        formatCurrency(cumulativeBalance),
-                    ];
-                    currentItemIndex++;
-                }
-                else {
-                    console.warn('Unrecognized event type:', event.type);
+                switch (event.type) {
+                    case 'PriceAtBookingPO': {
+                        const currentItem = standardPO.StandardPurchaseOrderItems[currentItemIndex];
+                        const itemPrice = parseFloat(currentItem.standardPurchaseOrderTotalStartPrice?.toString() || '0');
+                        cumulativeBalance -= itemPrice;
+                        rowValues = [
+                            formatDateTime(event.data.priceChangeOnStandardPODate),
+                            event.data.priceChangeOnStandardPORemarks ?? 'Price At Booking',
+                            formatCurrency(itemPrice),
+                            '',
+                            formatCurrency(cumulativeBalance),
+                        ];
+                        currentItemIndex++;
+                        break;
+                    }
+                    case 'LastCredit': {
+                        const oldPrice = parseFloat(event.data.standardPOReverseOldPrice?.toString() || '0');
+                        cumulativeBalance += oldPrice;
+                        rowValues = [
+                            formatDateTime(event.data.standardPOReverseDate),
+                            event.data.standardPOReverseNewPriceAlertRemarks ?? 'Price Correction - Reversal',
+                            '',
+                            formatCurrency(oldPrice),
+                            formatCurrency(cumulativeBalance),
+                        ];
+                        break;
+                    }
+                    case 'PriceChange': {
+                        const newPrice = parseFloat(event.data.newTotalPriceAmountOnStandardPO?.toString() || '0');
+                        cumulativeBalance -= newPrice;
+                        rowValues = [
+                            formatDateTime(event.data.priceChangeOnStandardPODate),
+                            event.data.priceChangeOnStandardPORemarks ?? 'Price Change',
+                            formatCurrency(newPrice),
+                            '',
+                            formatCurrency(cumulativeBalance),
+                        ];
+                        break;
+                    }
+                    case 'Remittance': {
+                        const remittedAmount = parseFloat(event.data.remittedAmountOnStandardPO?.toString() || '0');
+                        if (remittedAmount === 0) {
+                            shouldIncludeRow = false;
+                            break;
+                        }
+                        const remittanceDate = event.data.remittedDateOnStandardPO || event.data.remitDateOnStandardPO || event.data.priceChangeOnStandardPODate;
+                        const remarks = event.data.remittedRemarksOnStandardPO || event.data.remittanceUpdateRemarksOnStandardPO || 'Remittance';
+                        cumulativeBalance += remittedAmount;
+                        rowValues = [
+                            formatDateTime(remittanceDate),
+                            remarks,
+                            '',
+                            formatCurrency(remittedAmount),
+                            formatCurrency(cumulativeBalance),
+                        ];
+                        break;
+                    }
+                    default:
+                        console.warn('Unrecognized event type:', event.type);
+                        shouldIncludeRow = false;
                 }
                 if (shouldIncludeRow) {
                     drawSectionBTransactionRows(rowValues, event, standardPO, headersSectionB, headersSectionB);

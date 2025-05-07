@@ -35,30 +35,48 @@ RemittanceStandardPOSchema.pre('save', async function (next) {
         const standardPO = await StandardPurchaseOrder.findById(this.remittanceForWhichStandardPORefID).lean().exec();
         if (!standardPO)
             return next(new Error("Standard Purchase Order not found."));
-        const lastItem = standardPO.StandardPurchaseOrderItems?.slice(-1)[0];
-        const latestItemBalance = lastItem?.StandardPurchaseOrderCumulativeBalance?.slice(-1)[0]?.cumulativeBalance ?? 0;
-        if (this.remittanceAmount_CR > latestItemBalance) {
-            return next(new Error(`Overpayment Detected. Maximum allowed remittance is ${latestItemBalance}`));
+        const items = standardPO.StandardPurchaseOrderItems || [];
+        if (items.length === 0)
+            return next(new Error("No purchase order items found."));
+        const itemBalances = {};
+        for (const item of items) {
+            const intentID = item.standardPurchaseOrderIntentID;
+            const lastBalanceEntry = item.StandardPurchaseOrderCumulativeBalance?.slice(-1)[0];
+            itemBalances[intentID] = lastBalanceEntry?.cumulativeBalance ?? 0;
         }
-        const newEndingBalance = Math.max(0, latestItemBalance - this.remittanceAmount_CR);
-        const newRemittanceEntry = {
-            remittedDateOnStandardPO: this.createdAt,
-            remittedAmountOnStandardPO: this.remittanceAmount_CR,
-            TotalPaymentsMadeSoFarOnStandardPO: ((standardPO.TotalRemittanceMadeSoFarOnStandardPO || []).reduce((acc, rem) => acc + (rem?.remittedAmountOnStandardPO || 0), 0) + this.remittanceAmount_CR).toFixed(2),
-            remitDateOnStandardPO: '',
-            remittedRemarksOnStandardPO: this.remittanceOnStandardPORemarks || ''
-        };
+        let remainingPayment = this.remittanceAmount_CR;
+        let arrayFilterIndex = 0;
         const updateOps = {
             $push: {
-                TotalRemittanceMadeSoFarOnStandardPO: newRemittanceEntry,
-                "StandardPurchaseOrderItems.$[lastItem].StandardPurchaseOrderCumulativeBalance": {
-                    cumulativeBalance: newEndingBalance
+                TotalRemittanceMadeSoFarOnStandardPO: {
+                    remittedDateOnStandardPO: this.createdAt,
+                    remittedAmountOnStandardPO: this.remittanceAmount_CR,
+                    TotalPaymentsMadeSoFarOnStandardPO: ((standardPO.TotalRemittanceMadeSoFarOnStandardPO || []).reduce((acc, rem) => acc + (rem?.remittedAmountOnStandardPO || 0), 0) + this.remittanceAmount_CR).toFixed(2),
+                    remitDateOnStandardPO: '',
+                    remittedRemarksOnStandardPO: this.remittanceOnStandardPORemarks || ''
                 }
             }
         };
-        await StandardPurchaseOrder.updateOne({ _id: this.remittanceForWhichStandardPORefID }, updateOps, {
-            arrayFilters: [{ "lastItem.standardPurchaseOrderIntentID": lastItem?.standardPurchaseOrderIntentID }]
-        });
+        const arrayFilters = [];
+        for (const item of items) {
+            const intentID = item.standardPurchaseOrderIntentID;
+            const balance = itemBalances[intentID];
+            if (balance <= 0)
+                continue;
+            const amountToApply = Math.min(balance, remainingPayment);
+            const newBalance = balance - amountToApply;
+            const filterKey = `item${arrayFilterIndex}`;
+            updateOps.$push[`StandardPurchaseOrderItems.$[${filterKey}].StandardPurchaseOrderCumulativeBalance`] = { cumulativeBalance: newBalance };
+            arrayFilters.push({ [`${filterKey}.standardPurchaseOrderIntentID`]: intentID });
+            remainingPayment -= amountToApply;
+            arrayFilterIndex++;
+            if (remainingPayment <= 0)
+                break;
+        }
+        if (remainingPayment > 0) {
+            return next(new Error(`Overpayment Detected. Max allowed remittance is ${this.remittanceAmount_CR - remainingPayment}`));
+        }
+        await StandardPurchaseOrder.updateOne({ _id: this.remittanceForWhichStandardPORefID }, updateOps, { arrayFilters });
         this.remittanceForWhichStandardPurchaseOrderID = standardPO.standardPurchaseOrderId;
         this.remittanceForWhichActiveSubscriberID = standardPO.standardPOrderForActiveSubscriberID;
         this.remittanceActiveUserFullName = standardPO.standardPOrderUserProfileFullName;

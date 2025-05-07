@@ -3,6 +3,7 @@ import { ItemInformation } from './itemInformation.model.js';
 import { LayAwayPurchaseOrder } from './layAwayPurchaseOrder.model.js';
 import { StandardPurchaseOrder } from './standardPurchaseOrder.model.js';
 import { generateUpdateItemPriceShortId } from '../utils/generateCombinedUPDATESShortid.utils.js';
+import formatCurrency from '../utils/formatCurrency.utils.js';
 import { EventEmitter } from 'events';
 const eventBus = new EventEmitter();
 ;
@@ -91,68 +92,68 @@ UpdateItemPriceSchema.post('save', async function () {
                 await layAwayPO.save();
             }
         }
-        const standardPurchaseOrders = await StandardPurchaseOrder.find({ "StandardPurchaseOrderItems.standardPurchaseOrderIntent": this.itemToBeUpdatedRefID });
+        const standardPurchaseOrders = await StandardPurchaseOrder.find({
+            "StandardPurchaseOrderItems.standardPurchaseOrderIntent": this.itemToBeUpdatedRefID,
+        });
         const bulkUpdates = [];
         for (const standardPO of standardPurchaseOrders) {
             let orderUpdated = false;
             const updatedItems = standardPO.StandardPurchaseOrderItems.map(item => {
-                const isTargetItem = item.standardPurchaseOrderIntent.toString() === this.itemToBeUpdatedRefID.toString();
-                const unitPrice = isTargetItem
-                    ? this.updatedItemNewPriceByInflation
-                    : item.PriceChangeOnStandardPOHistoryDetails?.slice(-1)[0]?.newPriceAmountOnStandardPO
-                        ?? item.standardPurchaseOrderTotalStartPrice
-                        ?? 0;
+                const isTarget = item.standardPurchaseOrderIntent.toString() === this.itemToBeUpdatedRefID.toString();
                 const quantity = item.standardPurchaseOrderNoOfUnitBought ?? 1;
-                const total = unitPrice * quantity;
-                return { item, unitPrice, quantity, total, isTargetItem };
+                const history = item.PriceChangeOnStandardPOHistoryDetails ?? [];
+                const previousUnitPrice = history.slice(-1)[0]?.newUnitPriceAmountOnStandardPO
+                    ?? ((item.standardPurchaseOrderTotalStartPrice ?? 0) / quantity);
+                const latestUnitPrice = isTarget
+                    ? this.updatedItemNewPriceByInflation
+                    : previousUnitPrice;
+                const totalPrice = latestUnitPrice * quantity;
+                return {
+                    item,
+                    isTarget,
+                    quantity,
+                    unitPrice: latestUnitPrice,
+                    previousUnitPrice,
+                    totalPrice,
+                };
             });
-            const anyItemChanged = updatedItems.some(({ item, unitPrice, isTargetItem }) => {
-                if (!isTargetItem)
-                    return false;
-                const previousPrice = item.PriceChangeOnStandardPOHistoryDetails?.slice(-1)[0]?.newPriceAmountOnStandardPO
-                    ?? item.standardPurchaseOrderTotalStartPrice
-                    ?? 0;
-                return unitPrice !== previousPrice;
-            });
+            const anyItemChanged = updatedItems.some(({ isTarget, unitPrice, previousUnitPrice }) => isTarget && unitPrice !== previousUnitPrice);
             if (!anyItemChanged)
                 continue;
-            let cumulative = 0;
-            updatedItems.forEach((entry, index) => {
-                const { item, unitPrice, quantity, total, isTargetItem } = entry;
-                cumulative += total;
+            let cumulativeBalance = 0;
+            updatedItems.forEach(({ item, isTarget, quantity, unitPrice, previousUnitPrice, totalPrice }) => {
+                cumulativeBalance += totalPrice;
                 item.StandardPurchaseOrderCumulativeBalance ||= [];
                 item.StandardPurchaseOrderCumulativeBalance.push({
-                    cumulativeBalance: cumulative,
+                    cumulativeBalance,
                 });
                 item.StandardPurchaseOrderItemsGrandTotal ||= [];
                 item.StandardPurchaseOrderItemsGrandTotal.push({
-                    standardPurchaseOrderItemsGrandTotal: cumulative,
+                    standardPurchaseOrderItemsGrandTotal: cumulativeBalance,
                     updatedAt: new Date(),
                 });
-                if (isTargetItem) {
-                    const previousPrice = item.PriceChangeOnStandardPOHistoryDetails?.slice(-1)[0]?.newPriceAmountOnStandardPO
-                        ?? item.standardPurchaseOrderTotalStartPrice
-                        ?? 0;
-                    const priceChangeType = unitPrice > previousPrice ? 'Increase' : 'Decrease';
+                if (isTarget) {
+                    const oldTotal = previousUnitPrice * quantity;
+                    const newTotal = unitPrice * quantity;
+                    const priceChangeType = unitPrice > previousUnitPrice ? 'Increase' : 'Decrease';
                     item.PriceChangeOnStandardPOHistoryDetails ||= [];
                     item.PriceChangeOnStandardPOHistoryDetails.push({
                         priceChangeOnStandardPODate: this.createdAt,
-                        priceChangeOnStandardPORemarks: `Price ${priceChangeType} Alert for Item ID: ${this.itemToBeUpdatedID}`,
-                        newPriceAmountOnStandardPO: unitPrice,
+                        priceChangeOnStandardPORemarks: `Price ${priceChangeType} Alert for Item ID: ${this.itemToBeUpdatedID} || Unit Price ${priceChangeType} from @${formatCurrency(previousUnitPrice)} to @${formatCurrency(unitPrice)} each`,
+                        newUnitPriceAmountOnStandardPO: unitPrice,
+                        newTotalPriceAmountOnStandardPO: newTotal,
                         priceAdjustmentAppliedOnStandardPO: true,
                     });
                     const lastRemittance = item.RemittanceBalanceToBePaidDetailsOnStandardPO?.slice(-1)[0];
-                    const endingBalanceBeforePriceChange = lastRemittance?.endingBalanceAfterLastRemittanceOnStandardPO ?? 0;
-                    const newTotal = unitPrice * quantity;
-                    const oldTotal = previousPrice * quantity;
-                    const endingBalanceAfterPriceChange = endingBalanceBeforePriceChange + (oldTotal - newTotal);
+                    const endingBalanceBefore = lastRemittance?.endingBalanceAfterLastRemittanceOnStandardPO ?? 0;
+                    const endingBalanceAfter = endingBalanceBefore + (oldTotal - newTotal);
                     item.RemittanceBalanceToBePaidDetailsOnStandardPO ||= [];
                     item.RemittanceBalanceToBePaidDetailsOnStandardPO.push({
                         remitDateOnStandardPO: this.createdAt,
-                        remittanceExpectedBalToBePaidStandardPO: endingBalanceBeforePriceChange,
+                        remittanceExpectedBalToBePaidStandardPO: endingBalanceBefore,
                         remittanceUpdateRemarksOnStandardPO: `Balance adjusted for ${priceChangeType} in Item Price`,
                         remittedAmountCROnStandardPO: 0,
-                        endingBalanceAfterLastRemittanceOnStandardPO: endingBalanceAfterPriceChange,
+                        endingBalanceAfterLastRemittanceOnStandardPO: endingBalanceAfter,
                         priceAdjustmentAppliedOnStandardPO: true,
                         priceChangeOnStandardPODate: this.createdAt,
                     });
@@ -160,9 +161,9 @@ UpdateItemPriceSchema.post('save', async function () {
                     item.PriceReverseAlertDetailsOnStandardPO.push({
                         standardPOReverseDate: this.createdAt,
                         standardPOReversalID: generateUpdateItemPriceShortId(),
-                        standardPOReverseNewPriceAlertRemarks: `Credit Issued Due to Price Adjustment`,
-                        standardPOReverseOldPrice: previousPrice,
-                        standardPOReverseNewPriceAlert: unitPrice,
+                        standardPOReverseNewPriceAlertRemarks: `Credit Issued Due to Price Adjustment on Item ID:${this.itemToBeUpdatedID} || ${this.itemToBeUpdatedDisplayItemCode}`,
+                        standardPOReverseOldPrice: previousUnitPrice * quantity,
+                        standardPOReverseNewPriceAlert: unitPrice * quantity,
                     });
                 }
             });

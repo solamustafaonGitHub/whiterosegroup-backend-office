@@ -144,6 +144,8 @@ import {LayAwayPurchaseOrder, ILayAwayPurchaseOrder} from './layAwayPurchaseOrde
 import {StandardPurchaseOrder, IStandardPurchaseOrder} from './standardPurchaseOrder.model.js';
 import {generateUpdateItemPriceShortId} from '../utils/generateCombinedUPDATESShortid.utils.js';
 
+import formatCurrency from '../utils/formatCurrency.utils.js';
+
 import {EventEmitter} from 'events';
 const eventBus = new EventEmitter();
 
@@ -264,98 +266,103 @@ UpdateItemPriceSchema.post<IUpdateItemPrice>('save', async function () {
     }
 
     //-------------------- STANDARD PURCHASE ORDER UPDATE --------------------
-    const standardPurchaseOrders = await StandardPurchaseOrder.find({"StandardPurchaseOrderItems.standardPurchaseOrderIntent": this.itemToBeUpdatedRefID});
+    const standardPurchaseOrders = await StandardPurchaseOrder.find({
+      "StandardPurchaseOrderItems.standardPurchaseOrderIntent": this.itemToBeUpdatedRefID,
+    });
+    
     const bulkUpdates = [];
     
     for (const standardPO of standardPurchaseOrders) {
       let orderUpdated = false;
     
-      //Step 1:Recompute item totals
       const updatedItems = standardPO.StandardPurchaseOrderItems.map(item => {
-        const isTargetItem = item.standardPurchaseOrderIntent.toString() === this.itemToBeUpdatedRefID.toString();
-        const unitPrice = isTargetItem
-          ? this.updatedItemNewPriceByInflation
-          : item.PriceChangeOnStandardPOHistoryDetails?.slice(-1)[0]?.newPriceAmountOnStandardPO
-              ?? item.standardPurchaseOrderTotalStartPrice
-              ?? 0;
-    
+        const isTarget = item.standardPurchaseOrderIntent.toString() === this.itemToBeUpdatedRefID.toString();
         const quantity = item.standardPurchaseOrderNoOfUnitBought ?? 1;
-        const total = unitPrice * quantity;
     
-        return {item, unitPrice, quantity, total, isTargetItem};
+        // Use newUnitPriceAmountOnStandardPO for accurate unit-level history
+        const history = item.PriceChangeOnStandardPOHistoryDetails ?? [];
+        const previousUnitPrice =
+          history.slice(-1)[0]?.newUnitPriceAmountOnStandardPO
+          ?? ((item.standardPurchaseOrderTotalStartPrice ?? 0) / quantity); // Fallback to unit price from total
+    
+        const latestUnitPrice = isTarget
+          ? this.updatedItemNewPriceByInflation
+          : previousUnitPrice;
+    
+        const totalPrice = latestUnitPrice * quantity;
+    
+        return {
+          item,
+          isTarget,
+          quantity,
+          unitPrice: latestUnitPrice,
+          previousUnitPrice,
+          totalPrice,
+        };
       });
     
-      //Step 2:Check if any item was updated
-      const anyItemChanged = updatedItems.some(({ item, unitPrice, isTargetItem }) => {
-        if (!isTargetItem) return false;
-        const previousPrice = item.PriceChangeOnStandardPOHistoryDetails?.slice(-1)[0]?.newPriceAmountOnStandardPO
-          ?? item.standardPurchaseOrderTotalStartPrice
-          ?? 0;
-    
-        return unitPrice !== previousPrice;
-      });
+      const anyItemChanged = updatedItems.some(({ isTarget, unitPrice, previousUnitPrice }) =>
+        isTarget && unitPrice !== previousUnitPrice
+      );
     
       if (!anyItemChanged) continue;
     
-      //Step 3:Calculate cumulative totals
-      let cumulative = 0;
-      updatedItems.forEach((entry, index) => {
-        const { item, unitPrice, quantity, total, isTargetItem } = entry;
+      let cumulativeBalance = 0;
     
-        cumulative += total;
+      updatedItems.forEach(({ item, isTarget, quantity, unitPrice, previousUnitPrice, totalPrice }) => {
+        cumulativeBalance += totalPrice;
     
-        //Push to Cumulative & GrandTotal
         item.StandardPurchaseOrderCumulativeBalance ||= [];
         item.StandardPurchaseOrderCumulativeBalance.push({
-          cumulativeBalance: cumulative,
+          cumulativeBalance,
         });
     
         item.StandardPurchaseOrderItemsGrandTotal ||= [];
         item.StandardPurchaseOrderItemsGrandTotal.push({
-          standardPurchaseOrderItemsGrandTotal: cumulative,
+          standardPurchaseOrderItemsGrandTotal: cumulativeBalance,
           updatedAt: new Date(),
         });
     
-        //If it's the item that triggered the update, push price history, remittance, and reversal alert
-        if (isTargetItem) {
-          const previousPrice = item.PriceChangeOnStandardPOHistoryDetails?.slice(-1)[0]?.newPriceAmountOnStandardPO
-            ?? item.standardPurchaseOrderTotalStartPrice
-            ?? 0;
+        if (isTarget) {
+          const oldTotal = previousUnitPrice * quantity;
+          const newTotal = unitPrice * quantity;
     
-          const priceChangeType = unitPrice > previousPrice ? 'Increase' : 'Decrease';
+          const priceChangeType = unitPrice > previousUnitPrice ? 'Increase' : 'Decrease';
     
+          // 1. Add Price History (unit + total)
           item.PriceChangeOnStandardPOHistoryDetails ||= [];
           item.PriceChangeOnStandardPOHistoryDetails.push({
             priceChangeOnStandardPODate: this.createdAt,
-            priceChangeOnStandardPORemarks: `Price ${priceChangeType} Alert for Item ID: ${this.itemToBeUpdatedID}`,
-            newPriceAmountOnStandardPO: unitPrice,
+            priceChangeOnStandardPORemarks: `Price ${priceChangeType} Alert for Item ID: ${this.itemToBeUpdatedID} || Unit Price ${priceChangeType} from @${formatCurrency(previousUnitPrice)} to @${formatCurrency(unitPrice)} each`,
+            newUnitPriceAmountOnStandardPO: unitPrice,
+            newTotalPriceAmountOnStandardPO: newTotal,
             priceAdjustmentAppliedOnStandardPO: true,
           });
     
+          // 2. Update Remittance Balance
           const lastRemittance = item.RemittanceBalanceToBePaidDetailsOnStandardPO?.slice(-1)[0];
-          const endingBalanceBeforePriceChange = lastRemittance?.endingBalanceAfterLastRemittanceOnStandardPO ?? 0;
-          const newTotal = unitPrice * quantity;
-          const oldTotal = previousPrice * quantity;
-          const endingBalanceAfterPriceChange = endingBalanceBeforePriceChange + (oldTotal - newTotal);
+          const endingBalanceBefore = lastRemittance?.endingBalanceAfterLastRemittanceOnStandardPO ?? 0;
+          const endingBalanceAfter = endingBalanceBefore + (oldTotal - newTotal);
     
           item.RemittanceBalanceToBePaidDetailsOnStandardPO ||= [];
           item.RemittanceBalanceToBePaidDetailsOnStandardPO.push({
             remitDateOnStandardPO: this.createdAt,
-            remittanceExpectedBalToBePaidStandardPO: endingBalanceBeforePriceChange,
+            remittanceExpectedBalToBePaidStandardPO: endingBalanceBefore,
             remittanceUpdateRemarksOnStandardPO: `Balance adjusted for ${priceChangeType} in Item Price`,
             remittedAmountCROnStandardPO: 0,
-            endingBalanceAfterLastRemittanceOnStandardPO: endingBalanceAfterPriceChange,
+            endingBalanceAfterLastRemittanceOnStandardPO: endingBalanceAfter,
             priceAdjustmentAppliedOnStandardPO: true,
             priceChangeOnStandardPODate: this.createdAt,
           });
     
+          // 3. Add Reversal/Credit Alert
           item.PriceReverseAlertDetailsOnStandardPO ||= [];
           item.PriceReverseAlertDetailsOnStandardPO.push({
             standardPOReverseDate: this.createdAt,
             standardPOReversalID: generateUpdateItemPriceShortId(),
-            standardPOReverseNewPriceAlertRemarks: `Credit Issued Due to Price Adjustment`,
-            standardPOReverseOldPrice: previousPrice,
-            standardPOReverseNewPriceAlert: unitPrice,
+            standardPOReverseNewPriceAlertRemarks: `Credit Issued Due to Price Adjustment on Item ID:${this.itemToBeUpdatedID} || ${this.itemToBeUpdatedDisplayItemCode}`,
+            standardPOReverseOldPrice: previousUnitPrice * quantity,
+            standardPOReverseNewPriceAlert: unitPrice * quantity,
           });
         }
       });
@@ -376,10 +383,11 @@ UpdateItemPriceSchema.post<IUpdateItemPrice>('save', async function () {
       }
     }
     
-    //Step 4: Perform bulk update
+    // Step 4: Perform bulk database update
     if (bulkUpdates.length > 0) {
       await StandardPurchaseOrder.bulkWrite(bulkUpdates);
     }
+    
     
   } catch (error) {
     console.error("Error updating purchase orders:", error);

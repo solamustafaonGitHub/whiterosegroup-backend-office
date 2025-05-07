@@ -13,7 +13,8 @@ import {UOM} from './uom.model.js';
 interface IPriceChangeOnStandardPOHistoryDetails {
   priceChangeOnStandardPODate: Date;
   priceChangeOnStandardPORemarks: string;
-  newPriceAmountOnStandardPO: number;
+  newUnitPriceAmountOnStandardPO: number;
+  newTotalPriceAmountOnStandardPO: number;
   priceAdjustmentAppliedOnStandardPO: boolean;
   cumulativeBalance?: number; // Add cumulativeBalance property
 }
@@ -135,7 +136,8 @@ const StandardPurchaseOrderSchema = new Schema<IStandardPurchaseOrder>({
       PriceChangeOnStandardPOHistoryDetails: [{
         priceChangeOnStandardPODate: {type:Date, default:Date.now},
         priceChangeOnStandardPORemarks: {type:String},
-        newPriceAmountOnStandardPO: {type:Number},
+        newUnitPriceAmountOnStandardPO: {type:Number},
+        newTotalPriceAmountOnStandardPO: {type:Number},
         priceAdjustmentAppliedOnStandardPO: {type:Boolean, default:false}
       }],
       PriceReverseAlertDetailsOnStandardPO: [{
@@ -292,7 +294,9 @@ StandardPurchaseOrderSchema.pre<IStandardPurchaseOrder>('save', async function (
           item.PriceChangeOnStandardPOHistoryDetails.push({
             priceChangeOnStandardPODate: this.createdAt,
             priceChangeOnStandardPORemarks: `Start Balance | Item ID: ${item.standardPurchaseOrderIntentID} || ${item.standardPurchaseOrderIntentItemCode} || ${item.standardPurchaseOrderIntentItemName} || ${item.standardPurchaseOrderNoOfUnitBought}${item.standardPurchaseOrderUnitOfMeasure} @${formatCurrency(item.standardPurchaseOrderUnitPrice)} each`,
-            newPriceAmountOnStandardPO: item.standardPurchaseOrderTotalStartPrice, // ✅ Now it's per item!
+            newUnitPriceAmountOnStandardPO: item.standardPurchaseOrderUnitPrice, // ✅ Now it's per item!
+            
+            newTotalPriceAmountOnStandardPO: item.standardPurchaseOrderTotalStartPrice, 
             priceAdjustmentAppliedOnStandardPO: false,
             cumulativeBalance: item.standardPurchaseOrderTotalStartPrice, // Add cumulative balance
           });
@@ -329,10 +333,9 @@ StandardPurchaseOrderSchema.pre<IStandardPurchaseOrder>('save', async function (
     if (items.length === 0) return next();
     //a.Calculate current total per item
     const currentItemTotals = items.map(item => {
-      const latestPrice = item.PriceChangeOnStandardPOHistoryDetails?.slice(-1)[0]?.newPriceAmountOnStandardPO
+      const latestPrice = item.PriceChangeOnStandardPOHistoryDetails?.slice(-1)[0]?.newUnitPriceAmountOnStandardPO
         ?? item.standardPurchaseOrderTotalStartPrice
         ?? 0;
-
       const quantity = item.standardPurchaseOrderNoOfUnitBought ?? 1;
       return latestPrice * quantity;
     });
@@ -350,7 +353,7 @@ StandardPurchaseOrderSchema.pre<IStandardPurchaseOrder>('save', async function (
     let hasAnyItemChanged = false;
     items.forEach((currentItem, index) => {
       const previousItem = previousItems[index];
-      const previousPrice = previousItem?.PriceChangeOnStandardPOHistoryDetails?.slice(-1)[0]?.newPriceAmountOnStandardPO
+      const previousPrice = previousItem?.PriceChangeOnStandardPOHistoryDetails?.slice(-1)[0]?.newUnitPriceAmountOnStandardPO
         ?? previousItem?.standardPurchaseOrderTotalStartPrice
         ?? 0;
 

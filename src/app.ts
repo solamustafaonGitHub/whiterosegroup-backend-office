@@ -356,7 +356,8 @@ const start = async () => {
                 PriceChangeOnStandardPOHistoryDetails: [{
                   priceChangeOnStandardPODate: {type:Date, default:Date.now},
                   priceChangeOnStandardPORemarks: {type:String},
-                  newPriceAmountOnStandardPO: {type:Number},
+                  newUnitPriceAmountOnStandardPO: {type:Number},
+                  newTotalPriceAmountOnStandardPO: {type:Number},
                   priceAdjustmentAppliedOnStandardPO: {type:Boolean, default:false}
                 }],
                 PriceReverseAlertDetailsOnStandardPO: [{
