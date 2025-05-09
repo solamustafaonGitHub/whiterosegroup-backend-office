@@ -2,6 +2,7 @@ import mongoose, { Schema } from 'mongoose';
 import { ItemInformation } from './itemInformation.model.js';
 import { LayAwayPurchaseOrder } from './layAwayPurchaseOrder.model.js';
 import { StandardPurchaseOrder } from './standardPurchaseOrder.model.js';
+import { StandardSaleOrder } from './standardSaleOrder.model.js';
 import { generateUpdateItemPriceShortId } from '../utils/generateCombinedUPDATESShortid.utils.js';
 import formatCurrency from '../utils/formatCurrency.utils.js';
 import { EventEmitter } from 'events';
@@ -184,10 +185,102 @@ UpdateItemPriceSchema.post('save', async function () {
         if (bulkUpdates.length > 0) {
             await StandardPurchaseOrder.bulkWrite(bulkUpdates);
         }
+        const standardSaleInvoices = await StandardSaleOrder.find({
+            "StandardSaleInvoiceItems.standardSaleInvoiceIntent": this.itemToBeUpdatedRefID,
+        });
+        const bulkSaleInvoiceUpdates = [];
+        for (const standardSI of standardSaleInvoices) {
+            let orderUpdated = false;
+            const updatedItems = standardSI.StandardSaleInvoiceItems.map(item => {
+                const isTarget = item.standardSaleInvoiceIntent.toString() === this.itemToBeUpdatedRefID.toString();
+                const quantity = item.standardSaleInvoiceNoOfUnitBought ?? 1;
+                const history = item.PriceChangeOnStandardSaleInvoiceHistoryDetails ?? [];
+                const previousUnitPrice = history.slice(-1)[0]?.newUnitPriceAmountOnStandardSaleInvoice
+                    ?? ((item.standardSaleInvoiceTotalStartPrice ?? 0) / quantity);
+                const latestUnitPrice = isTarget
+                    ? this.updatedItemNewPriceByInflation
+                    : previousUnitPrice;
+                const totalPrice = latestUnitPrice * quantity;
+                return {
+                    item,
+                    isTarget,
+                    quantity,
+                    unitPrice: latestUnitPrice,
+                    previousUnitPrice,
+                    totalPrice,
+                };
+            });
+            const anyItemChanged = updatedItems.some(({ isTarget, unitPrice, previousUnitPrice }) => isTarget && unitPrice !== previousUnitPrice);
+            if (!anyItemChanged)
+                continue;
+            let cumulativeBalance = 0;
+            updatedItems.forEach(({ item, isTarget, quantity, unitPrice, previousUnitPrice, totalPrice }) => {
+                cumulativeBalance += totalPrice;
+                item.StandardSaleInvoiceCumulativeBalance ||= [];
+                item.StandardSaleInvoiceCumulativeBalance.push({
+                    cumulativeBalance,
+                });
+                item.StandardSaleInvoiceItemsGrandTotal ||= [];
+                item.StandardSaleInvoiceItemsGrandTotal.push({
+                    standardSaleInvoiceItemsGrandTotal: cumulativeBalance,
+                    updatedAt: new Date(),
+                });
+                if (isTarget) {
+                    const oldTotal = previousUnitPrice * quantity;
+                    const newTotal = unitPrice * quantity;
+                    const priceChangeType = unitPrice > previousUnitPrice ? 'Increase' : 'Decrease';
+                    item.PriceChangeOnStandardSaleInvoiceHistoryDetails ||= [];
+                    item.PriceChangeOnStandardSaleInvoiceHistoryDetails.push({
+                        priceChangeOnStandardSaleInvoiceDate: this.createdAt,
+                        priceChangeOnStandardSaleInvoiceRemarks: `Price ${priceChangeType} Alert for Item ID: ${this.itemToBeUpdatedID} || Unit Price ${priceChangeType} from @${formatCurrency(previousUnitPrice)} to @${formatCurrency(unitPrice)} each`,
+                        newUnitPriceAmountOnStandardSaleInvoice: unitPrice,
+                        newTotalPriceAmountOnStandardSaleInvoice: newTotal,
+                        priceAdjustmentAppliedOnStandardSaleInvoice: true,
+                    });
+                    const lastRemittance = item.RemittanceBalanceToBePaidDetailsOnStandardSaleInvoice?.slice(-1)[0];
+                    const endingBalanceBefore = lastRemittance?.endingBalanceAfterLastRemittanceOnStandardSaleInvoice ?? 0;
+                    const endingBalanceAfter = endingBalanceBefore + (oldTotal - newTotal);
+                    item.RemittanceBalanceToBePaidDetailsOnStandardSaleInvoice ||= [];
+                    item.RemittanceBalanceToBePaidDetailsOnStandardSaleInvoice.push({
+                        remitDateOnStandardSaleInvoice: this.createdAt,
+                        remittanceExpectedBalToBePaidStandardSaleInvoice: endingBalanceBefore,
+                        remittanceUpdateRemarksOnStandardSaleInvoice: `Balance adjusted for ${priceChangeType} in Item Price`,
+                        remittedAmountCROnStandardSaleInvoice: 0,
+                        endingBalanceAfterLastRemittanceOnStandardSaleInvoice: endingBalanceAfter,
+                        priceAdjustmentAppliedOnStandardSaleInvoice: true,
+                        priceChangeOnStandardSaleInvoiceDate: this.createdAt,
+                    });
+                    item.PriceReverseAlertDetailsOnStandardSaleInvoice ||= [];
+                    item.PriceReverseAlertDetailsOnStandardSaleInvoice.push({
+                        standardSaleInvoiceReverseDate: this.createdAt,
+                        standardSaleInvoiceReversalID: generateUpdateItemPriceShortId(),
+                        standardSaleInvoiceReverseNewPriceAlertRemarks: `Credit Issued Due to Price Adjustment on Item ID:${this.itemToBeUpdatedID} || ${this.itemToBeUpdatedDisplayItemCode}`,
+                        standardSaleInvoiceReverseOldPrice: previousUnitPrice * quantity,
+                        standardSaleInvoiceReverseNewPriceAlert: unitPrice * quantity,
+                    });
+                }
+            });
+            orderUpdated = true;
+            if (orderUpdated) {
+                bulkSaleInvoiceUpdates.push({
+                    updateOne: {
+                        filter: { _id: standardSI._id },
+                        update: {
+                            $set: {
+                                StandardPurchaseOrderItems: standardSI.StandardSaleInvoiceItems,
+                            },
+                        },
+                    },
+                });
+            }
+        }
+        if (bulkSaleInvoiceUpdates.length > 0) {
+            await StandardSaleOrder.bulkWrite(bulkSaleInvoiceUpdates);
+        }
     }
     catch (error) {
         console.error("Error updating purchase orders:", error);
-        throw new Error(`Failed to update Purchase Orders or Item Information: ${error.message}`);
+        throw new Error(`Failed to update SaleInvoice or Item Information: ${error.message}`);
     }
 });
 const UpdateItemPrice = mongoose.model('UpdateItemPrice', UpdateItemPriceSchema);

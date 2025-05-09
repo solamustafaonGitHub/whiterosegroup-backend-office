@@ -25,10 +25,11 @@ import { PaymentClass } from './models/paymentClass.model.js';
 import { ECommerceProfile } from './models/eCommerceProfile.model.js';
 import { LayAwayPurchaseOrder } from './models/layAwayPurchaseOrder.model.js';
 import { StandardPurchaseOrder } from './models/standardPurchaseOrder.model.js';
-import { UserScheme } from './models/userScheme.model.js';
+import { StandardSaleOrder } from './models/standardSaleOrder.model.js';
+import { SchemeSaleOrder } from './models/schemeSaleOrder.model.js';
 import { Project214Information } from './models/project214Information.model.js';
 import { SubscribeToProject214 } from './models/subscribeToProject214.model.js';
-import { PaymentPlan } from './models/paymentPlan.model.js';
+import { PaymentPlanForFractionalOwnership } from './models/paymentPlanForFractionalOwnership.model.js';
 import { UpdateScheme } from './models/updateScheme.model.js';
 import { UpdateItemPrice } from './models/updateItemPrice.model.js';
 import { RemittanceOnLayAwayPO } from './models/remittanceOnLayAwayPO.model.js';
@@ -39,7 +40,8 @@ import { getUserProfiles } from './routes/getUserProfiles.route.js';
 import schemeInformationRouter from './routes/schemeInformation. route.js';
 import lawAwayPurchaseOrderRouter from './routes/layAwayPurchaseOrder.route.js';
 import standardPurchaseOrderRouter from './routes/standardPurchaseOrder.route.js';
-import userSchemeRouter from './routes/userScheme.route.js';
+import standardSaleOrderRouter from './routes/standardSaleOrder.route.js';
+import schemeSaleOrderRouter from './routes/schemeSaleOrder.route.js';
 import Project214Router from './routes/project214.route.js';
 import paymentPlanRouter from './routes/paymentPlan.route.js';
 import subscribeToProject214Router from './routes/subscribeToPoject214.route.js';
@@ -54,7 +56,7 @@ import { generateHouseShortId } from './utils/generateHouseShortId.utils.js';
 import { fetchAvaiilableFractionalUnits } from './utils/fetchAvailableFractionalUnits.utils.js';
 import generateActiveUserShortId from './utils/generateActiveSubscriberShortId.utils.js';
 import UnitSelectionComponent from './admin/customComponents/UnitSelectionComponent.js';
-const PORT = 3017;
+const PORT = 3018;
 AdminJS.registerAdapter({
     Resource: AdminJSMongoose.Resource,
     Database: AdminJSMongoose.Database,
@@ -183,13 +185,16 @@ const start = async () => {
                     }]
             }));
             const profiledPartnerModel = mongoose.model('ProfiledPartner', new mongoose.Schema({
-                profiledPartnerName: String,
-                profiledPartnerType: String,
-                profiledPartnerSubType: String,
-                profiledPartnerOfficeAdd: String,
-                profiledPartnerPayDay: Number,
-                createdAt: Date,
-                lastUpdatedAt: Date
+                profiledPartnerName: { type: String, required: true },
+                profiledPartnerType: { type: String, enum: ['PRIVATE COMPANY', 'PUBLIC INSTITUTION', 'SELF-EMPLOYED', 'OTHERS'], required: true },
+                profiledPartnerSubType: { type: String, enum: ['LIMITED LIABILITY COMPANY (LLC)', 'PUBLIC LIABILITY COMPANY (PLC)', 'FEDERAL GOVERNMENT AGENCY/PARASTATAL', 'STATE GOVERNMENT AGENCY/PARASTATAL', 'LOCAL GOVERNMENT AGENCY/PARASTATAL', 'SELF EMPLOYMENT', 'OTHERS'],
+                    required: true },
+                profiledPartnerOfficeAdd: { type: String, required: true },
+                approvedEquityContributionInPercentage: { type: Number, required: true },
+                approvedPaymentPlans: [{ type: mongoose.Schema.Types.ObjectId, ref: 'PaymentPlan', required: true }],
+                profiledPartnerPayDay: { type: Number, enum: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31], required: true },
+                createdAt: { type: Date, default: Date.now },
+                lastUpdatedAt: { type: Date, default: Date.now }
             }));
             const subscriptionTypeModel = mongoose.model('SubscriptionType', new mongoose.Schema({
                 subscTypeName: String,
@@ -316,6 +321,71 @@ const start = async () => {
                     }],
                 lastUpdatedAt: { type: Date, default: Date.now, required: true }
             }));
+            const standardSaleOrderModel = mongoose.model('StandardSaleOrder', new mongoose.Schema({
+                standardSaleInvoiceId: { type: String, default: generateCombinedPOShortId, unique: true },
+                createdAt: { type: Date, default: Date.now, required: true },
+                standardSaleInvoiceForActiveSubscriberRefID: { type: Schema.Types.ObjectId, ref: 'ActiveSubscriber', required: true },
+                standardSaleInvoiceForActiveSubscriberID: { type: String },
+                standardSaleInvoiceUserProfileFullName: { type: String },
+                standardSaleInvoiceUserProfilePhoneNo: { type: String },
+                standardSaleInvoiceUserProfileEmail: { type: String },
+                standardSaleInvoiceUserDeliveryAddress: { type: String },
+                standardSaleInvoiceAssetSubscType: { type: String, default: 'Outright Purchase' },
+                StandardSaleInvoiceItems: [{
+                        standardSaleCount: { type: Number },
+                        standardSaleInvoiceDate: { type: Date, required: true },
+                        standardSaleInvoiceIntent: { type: Schema.Types.ObjectId, ref: 'ItemInformation', required: true },
+                        standardSaleInvoiceIntentID: { type: String },
+                        standardSaleInvoiceIntentItemCode: { type: String },
+                        standardSaleInvoiceIntentItemName: { type: String },
+                        standardSaleInvoiceIntentDesc: { type: String },
+                        standardSaleInvoiceNoOfUnitBought: { type: Number, required: true },
+                        standardSaleInvoiceUnitOfMeasureRefID: { type: Schema.Types.ObjectId, ref: 'UOM', required: true },
+                        standardSaleInvoiceUnitOfMeasure: { type: String },
+                        standardSaleInvoiceUnitPrice: { type: Number },
+                        standardSaleInvoiceTotalStartPrice: { type: Number },
+                        standardSaleInvoiceNewPriceAlert: { type: Number },
+                        PriceChangeOnStandardSaleInvoiceHistoryDetails: [{
+                                priceChangeOnStandardSaleInvoiceDate: { type: Date, default: Date.now },
+                                priceChangeOnStandardSaleInvoiceRemarks: { type: String },
+                                newUnitPriceAmountOnStandardSaleInvoice: { type: Number },
+                                newTotalPriceAmountOnStandardSaleInvoice: { type: Number },
+                                priceAdjustmentAppliedOnStandardSaleInvoice: { type: Boolean, default: false }
+                            }],
+                        PriceReverseAlertDetailsOnStandardSaleInvoice: [{
+                                standardSaleInvoiceReverseDate: { type: Date, default: Date.now },
+                                standardSaleInvoiceReversalID: { type: String },
+                                standardSaleInvoiceReverseOldPrice: { type: Number },
+                                standardSaleInvoiceReverseNewPriceAlertRemarks: { type: String },
+                                standardSaleInvoiceReverseNewPriceAlert: { type: Number }
+                            }],
+                        RemittanceBalanceToBePaidDetailsOnStandardSaleInvoice: [{
+                                priceChangeOnStandardSaleInvoiceDate: { type: Date, default: Date.now },
+                                isRemittanceAfterPriceChangeOnStandardSaleInvoice: { type: Boolean },
+                                remitDateOnStandardSaleInvoice: { type: Date, default: Date.now },
+                                remittanceExpectedBalToBePaidStandardSaleInvoice: { type: Number },
+                                remittanceUpdateRemarksOnStandardSaleInvoice: { type: String },
+                                remittedAmountCROnStandardSaleInvoice: { type: Number },
+                                endingBalanceAfterLastRemittanceOnStandardSaleInvoice: { type: Number },
+                                priceAdjustmentAppliedOnStandardSaleInvoice: { type: Boolean, default: false },
+                            }],
+                        StandardSaleInvoiceCumulativeBalance: [{
+                                cumulativeBalance: { type: Number }
+                            }],
+                        StandardSaleInvoiceItemsGrandTotal: [{
+                                updatedAt: { type: Date, default: Date.now },
+                                standardSaleInvoiceItemsGrandTotal: { type: Number }
+                            }],
+                    }],
+                TotalRemittanceMadeSoFarOnStandardSaleInvoice: [{
+                        remitDateOnStandardSaleInvoice: { type: Date, default: Date.now },
+                        remittedDateOnStandardSaleInvoice: { type: Date },
+                        remittedAmountOnStandardSaleInvoice: { type: Number },
+                        remittedRemarksOnStandardSaleInvoice: { type: String },
+                        TotalPaymentsMadeSoFarOnStandardSaleInvoice: { type: String }
+                    }],
+                lastUpdatedAt: { type: Date, default: Date.now, required: true }
+            }));
             const paymentClassModel = mongoose.model('PaymentClass', new mongoose.Schema({
                 paymentClassName: String,
                 paymentClassDesc: String,
@@ -427,9 +497,9 @@ const start = async () => {
                 noOfUnitsAvailableAfterAUserSchemed: { type: Number },
                 lastUpdatedAt: { type: Date, default: Date.now }
             }));
-            const userSchemeModel = mongoose.model('UserScheme', new mongoose.Schema({
+            const SchemeSaleOrderModel = mongoose.model('SchemeSaleOrder', new mongoose.Schema({
                 userSchemeTransactionID: { type: String, required: true, unique: true },
-                userRefIdRequiringScheme: { type: Schema.Types.ObjectId, ref: 'ActiveUser', required: true },
+                userRefIdRequiringScheme: { type: Schema.Types.ObjectId, ref: 'ActiveSubscriber', required: true },
                 userFullNameRequiringScheme: { type: String },
                 userEmailRequiringScheme: { type: String },
                 userPhoneNoRequiringScheme: { type: String },
@@ -522,8 +592,7 @@ const start = async () => {
                 percentageFeeName: { type: String, required: true },
                 percentageFeeAmount: { type: Number, required: true }
             });
-            const paymentPlanModel = mongoose.model('PaymentPlan', new mongoose.Schema({
-                paymentPlanId: { type: String, unique: true, default: generateCombinedPaymentPlanShortId },
+            const paymentPlanForFractionalOwnershipModel = mongoose.model('PaymentPlanForFractionalOwnership', new mongoose.Schema({
                 paymentPlanName: { type: String, required: true },
                 paymentPlanDescription: { type: String, required: true },
                 paymentType: { type: String, required: true },
@@ -544,12 +613,13 @@ const start = async () => {
                         TotalPayablePerFrequency: { type: Number },
                         BalanceToBePaidPerFrequency: { type: Number }
                     }],
+                paymentPlanId: { type: String, unique: true, default: generateCombinedPaymentPlanShortId },
                 createdOn: { type: Date, default: Date.now, required: true },
                 lastUpdatedAt: { type: Date, default: Date.now, required: true }
             }));
             const subscribeToProject214Model = mongoose.model('SubscribeToProject214', new Schema({
                 subscribeP214OrderId: { type: String, unique: true, default: generateCombinedPOShortId },
-                subscribersActiveID: { type: Schema.Types.ObjectId, ref: 'ActiveUser', required: true },
+                subscribersActiveID: { type: Schema.Types.ObjectId, ref: 'ActiveSubscriber', required: true },
                 subscribersFullName: { type: String },
                 subscribersEmail: { type: String },
                 subscribersPhoneNumber: { type: String },
@@ -627,6 +697,12 @@ const start = async () => {
                 .populate('UOM')
                 .populate('SubcriptionType')
                 .exec();
+            const standardSaleOrderData = await standardSaleOrderModel.find({})
+                .populate({ model: 'ActiveSubscriber', path: '', select: 'activeUserPhoneNo activeUserEmail activeUserFirstName activeUserLastName' })
+                .populate('ItemInfomation')
+                .populate('UOM')
+                .populate('SubcriptionType')
+                .exec();
             const paymentClassData = await paymentClassModel.find({}).exec();
             const remittanceLayAwayPOData = await remittanceLayAwayPOModel.find({})
                 .populate({ path: '', model: 'LayWayPurchaseOrder', select: 'purchaseOrderId' })
@@ -645,13 +721,13 @@ const start = async () => {
                 .populate({ model: 'ItemInformation', path: '', select: 'itemInformationName' })
                 .populate({ model: 'UOM', path: '', select: 'unitofMeasureID' })
                 .exec();
-            const userSchemeData = await userSchemeModel.find({})
+            const SchemeSaleOrderData = await SchemeSaleOrderModel.find({})
                 .populate({ model: 'SchemeInformationProfile', path: '', select: 'schemeID' })
                 .exec();
             const Project214InformationModel = mongoose.model('Project214Information', project214Model);
             const project214Data = await Project214InformationModel.find({})
                 .exec();
-            const paymentPlanData = await paymentPlanModel.find({})
+            const paymentPlanForFractionalOwnershipData = await paymentPlanForFractionalOwnershipModel.find({})
                 .exec();
             const subscribeToProject214Data = await subscribeToProject214Model.findById('subscribeP214OrderId')
                 .populate({ model: 'ActiveSubscriber', path: 'subscribersActiveID', select: 'fullName email' })
@@ -665,8 +741,8 @@ const start = async () => {
                 .exec();
             return { itemCategoryData, itemTypeData, itemSubTypeData, itemBrandData, eCommerceProfileData, unitOfMeasureData, itemInformationData, updateItemPriceData,
                 profiledPartnerData, paymentClassData, subscriptionTypeData, accountHolderData, activeSubscriberData, layAwayPurchaseOrderData, standardPurchaseOrderData,
-                remittanceLayAwayPOData, remittanceStandardPOData, remittanceSchemeData, schemeInformationData, userSchemeData, project214Data, paymentPlanData, subscribeToProject214Data,
-                nairaWalletBalanceData };
+                standardSaleOrderData, remittanceLayAwayPOData, remittanceStandardPOData, remittanceSchemeData, schemeInformationData, SchemeSaleOrderData, project214Data,
+                paymentPlanForFractionalOwnershipData, subscribeToProject214Data, nairaWalletBalanceData };
         }
         catch (error) {
             console.error('Error Fetching Data from MongoDB:', error);
@@ -696,7 +772,7 @@ const start = async () => {
             { resource: ProfiledPartner, options: { navigation: businessNavigation, id: 'ProfiledPartner', search: { type: String, isVisible: { filter: true } } } },
             { resource: SubscriptionType, options: { navigation: businessNavigation, id: 'SubscriptionType', search: { type: String, isVisible: { filter: true } } } },
             { resource: PaymentClass, options: { navigation: businessNavigation, id: 'PaymentClass', search: { type: String, isVisible: { filter: true } } } },
-            { resource: PaymentPlan, options: { navigation: businessNavigation, id: 'PaymentPlan', search: { type: String, isVisible: { filter: true } } } },
+            { resource: PaymentPlanForFractionalOwnership, options: { navigation: businessNavigation, id: 'PaymentPlanForFractionalOwnership', search: { type: String, isVisible: { filter: true } } } },
             { resource: UOM, options: { navigation: businessNavigation, id: 'UOM', search: { type: String, isVisible: { filter: true } } } },
             { resource: AccountSubscriber, options: { navigation: customersNavigation, id: 'AccountSubscriber', search: { type: String, isVisible: { filter: true } } } },
             { resource: ActiveSubscriber, options: { navigation: customersNavigation, id: 'ActiveSubscriber', search: { type: String, isVisible: { filter: true } } } },
@@ -710,9 +786,8 @@ const start = async () => {
             { resource: Project214Information, options: { navigation: fractionalOwnership, id: 'Project214Information', search: { type: String, isVisible: { filter: true } }, properties: { project214AvailableFractionalUnitsList: {} } } },
             { resource: UpdateItemPrice, options: { navigation: updateNavigation, id: 'UpdateItemPrice', search: { type: String, isVisible: { filter: true } }, actions: { edit: false, delete: false } } },
             { resource: UpdateScheme, options: { navigation: updateNavigation, id: 'UpdateScheme', search: { type: String, isVisible: { filter: true } } } },
-            { resource: LayAwayPurchaseOrder, options: { navigation: transactionsNavigation, id: 'LayAwayPurchaseOrder', search: { type: String, isVisible: { filter: true } } } },
-            { resource: StandardPurchaseOrder, options: { navigation: transactionsNavigation, id: 'StandardPurchaseOrder', search: { type: String, isVisible: { filter: true } } } },
-            { resource: UserScheme, options: { navigation: transactionsNavigation, id: 'UserScheme', search: { type: String, isVisible: { filter: true } } } },
+            { resource: StandardSaleOrder, options: { navigation: transactionsNavigation, id: 'StandardSaleOrder', search: { type: String, isVisible: { filter: true } } } },
+            { resource: SchemeSaleOrder, options: { navigation: transactionsNavigation, id: 'SchemeSaleOrder', search: { type: String, isVisible: { filter: true } } } },
             { resource: SubscribeToProject214,
                 options: {
                     navigation: transactionsNavigation,
@@ -772,6 +847,8 @@ const start = async () => {
                     },
                 },
             },
+            { resource: LayAwayPurchaseOrder, options: { navigation: transactionsNavigation, id: 'LayAwayPurchaseOrder', search: { type: String, isVisible: { filter: true } } } },
+            { resource: StandardPurchaseOrder, options: { navigation: transactionsNavigation, id: 'StandardPurchaseOrder', search: { type: String, isVisible: { filter: true } } } },
             { resource: RemittanceOnLayAwayPO, options: { navigation: remittanceNavigation, id: 'RemittanceOnLayAwayPO', search: { type: String, isVisible: { filter: true } } } },
             { resource: RemittanceOnStandardPO, options: { navigation: remittanceNavigation, id: 'RemittanceOnStandardPO', search: { type: String, isVisible: { filter: true } } } },
             { resource: RemitOnScheme, options: { navigation: remittanceNavigation, id: 'RemitOnScheme', search: { type: String, isVisible: { filter: true } } } },
@@ -789,8 +866,9 @@ const start = async () => {
     app.use(admin.options.rootPath, adminRouter);
     app.use('/api', lawAwayPurchaseOrderRouter);
     app.use('/api', standardPurchaseOrderRouter);
+    app.use('/api', standardSaleOrderRouter);
     app.use('/api', schemeInformationRouter);
-    app.use('/api', userSchemeRouter);
+    app.use('/api', schemeSaleOrderRouter);
     app.use('/api', Project214Router);
     app.use('/api', paymentPlanRouter);
     app.use('/api', subscribeToProject214Router);

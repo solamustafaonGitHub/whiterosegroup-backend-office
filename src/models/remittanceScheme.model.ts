@@ -1,5 +1,5 @@
 import mongoose, {Schema, Document, model, CallbackError} from 'mongoose';
-import {UserScheme, IUserScheme} from './userScheme.model.js';
+import {SchemeSaleOrder, ISchemeSaleOrder} from './schemeSaleOrder.model.js';
 import {PaymentClass, IPaymentClass} from './paymentClass.model.js';
 import {generateCombinedRemittanceShortId} from '../utils/generateCombinedRemittanceShortId.utils.js';
 
@@ -81,7 +81,7 @@ remittanceSchemeSchema.pre<IRemittanceScheme>('save', function (next) {
 remittanceSchemeSchema.pre<IRemittanceScheme>('save', async function (next) {
   try {
     if (this.remittanceForWhichUserSchemeTransID) {
-      const userSchemeOrder = await UserScheme.findById(this.remittanceForWhichUserSchemeTransID).exec();
+      const userSchemeOrder = await SchemeSaleOrder.findById(this.remittanceForWhichUserSchemeTransID).exec();
       if (userSchemeOrder) {
         this.remittanceForWhichSchemeID = userSchemeOrder.userSchemeTransactionID;
         this.remittanceForWhichActiveUserIDWhoSchemed = userSchemeOrder.userIdRequiringScheme;

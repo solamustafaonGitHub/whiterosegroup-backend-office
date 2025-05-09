@@ -1,5 +1,5 @@
 import mongoose, { Schema } from 'mongoose';
-import { UserScheme } from './userScheme.model.js';
+import { SchemeSaleOrder } from './schemeSaleOrder.model.js';
 import { PaymentClass } from './paymentClass.model.js';
 import { generateCombinedRemittanceShortId } from '../utils/generateCombinedRemittanceShortId.utils.js';
 import { EventEmitter } from 'events';
@@ -44,7 +44,7 @@ remittanceSchemeSchema.pre('save', async function (next) {
 remittanceSchemeSchema.pre('save', async function (next) {
     try {
         if (this.remittanceForWhichUserSchemeTransID) {
-            const userSchemeOrder = await UserScheme.findById(this.remittanceForWhichUserSchemeTransID).exec();
+            const userSchemeOrder = await SchemeSaleOrder.findById(this.remittanceForWhichUserSchemeTransID).exec();
             if (userSchemeOrder) {
                 this.remittanceForWhichSchemeID = userSchemeOrder.userSchemeTransactionID;
                 this.remittanceForWhichActiveUserIDWhoSchemed = userSchemeOrder.userIdRequiringScheme;

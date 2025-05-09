@@ -1,13 +1,13 @@
 import mongoose, { model } from 'mongoose';
 import { ActiveSubscriber } from '../models/activeSubscriber.model.js';
-import { PaymentPlan } from '../models/paymentPlan.model.js';
+import { PaymentPlanForFractionalOwnership } from './paymentPlanForFractionalOwnership.model.js';
 import { Project214Information } from '../models/project214Information.model.js';
 import generateCombinedOrderShortId from '../utils/generateCombinedPOShortId.util.js';
 ;
 ;
 const subscribeToProject214Schema = new mongoose.Schema({
     subscribeP214OrderId: { type: String, unique: true, default: generateCombinedOrderShortId },
-    subscribersActiveID: { type: mongoose.Schema.Types.ObjectId, ref: 'ActiveUser', required: true },
+    subscribersActiveID: { type: mongoose.Schema.Types.ObjectId, ref: 'ActiveSubscriber', required: true },
     subscribersFullName: { type: String },
     subscribersEmail: { type: String },
     subscribersPhoneNumber: { type: String },
@@ -79,7 +79,7 @@ subscribeToProject214Schema.pre('save', async function (next) {
 subscribeToProject214Schema.pre('save', async function (next) {
     try {
         if (this.projectTheSubscriberIsInterestedInPaymentPlanID) {
-            const paymentPlan = await PaymentPlan.findById(this.projectTheSubscriberIsInterestedInPaymentPlanID).exec();
+            const paymentPlan = await PaymentPlanForFractionalOwnership.findById(this.projectTheSubscriberIsInterestedInPaymentPlanID).exec();
             if (paymentPlan) {
                 this.projectTheSubscriberIsInterestedInPaymentPlanName = paymentPlan.paymentPlanName;
                 this.projectTheSubscriberIsInterestedInPaymentPlanShortDesc = paymentPlan.paymentPlanDescription;

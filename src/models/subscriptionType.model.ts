@@ -1,6 +1,6 @@
 import mongoose, {model,Schema,Types } from 'mongoose'
 
-// Define the interface for SubscriptionType
+//Define the interface for SubscriptionType
 interface ISubscriptionType {
     subscTypeName: string;
     subscTypeDesc: string;
@@ -8,7 +8,7 @@ interface ISubscriptionType {
     lastUpdatedAt: Date;
 };
 
-// Define the SubscriptionType Schema
+//Define the SubscriptionType Schema
 const subscriptionTypeSchema = new Schema<ISubscriptionType>({
     subscTypeName: {type:String, unique:true, required:true},
     subscTypeDesc: {type:String, required:true},

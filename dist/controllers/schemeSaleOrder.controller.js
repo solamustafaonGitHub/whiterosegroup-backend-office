@@ -2,40 +2,38 @@ import fs from 'fs';
 import path from 'path';
 import PDFDocument from 'pdfkit';
 import * as url from 'url';
-import { UserScheme } from "../models/schemeSaleOrder.model.js";
+import { SchemeSaleOrder } from "../models/schemeSaleOrder.model.js";
 import formatCurrency from "../utils/formatCurrency.utils.js";
 import formatDateTime from "../utils/formatDateTime.utils.js";
 import addFormatToCurrencyInThePDF from '../utils/addFormatToCurrency.utils.js';
 import pkg from 'pdfkit';
 const { x, y } = pkg;
-export const UserSchemePDFController = async (req, res) => {
+export const SchemeSaleOrderPDFController = async (req, res) => {
     console.log("Received Request Params:", req.params);
     const userSchemeTransactionID = req.params.id;
-    console.log("Received UserScheme Transaction ID:", userSchemeTransactionID);
+    console.log("Received Scheme Order Transaction ID:", userSchemeTransactionID);
     try {
-        const userScheme = await UserScheme.findOne({ userSchemeTransactionID });
-        if (!userScheme) {
-            return res.status(404).json({ error: "User Scheme Information Not Found" });
+        const schemeSO = await SchemeSaleOrder.findOne({ userSchemeTransactionID });
+        if (!schemeSO) {
+            return res.status(404).json({ error: "Scheme Sale Order Information Not Found" });
         }
-        const userSchemeInformationObject = userScheme.toObject();
-        const outputFilePath = path.resolve(`./pdfs/userScheme_${userSchemeTransactionID}.pdf`);
-        await generateUserSchemeInformationPDF(outputFilePath, userSchemeInformationObject);
-        res.download(outputFilePath, `UserScheme_${userSchemeTransactionID}.pdf`, (err) => {
+        const schemeSaleOrderObject = schemeSO.toObject();
+        const outputFilePath = path.resolve(`./pdfs/schemeSO_${userSchemeTransactionID}.pdf`);
+        await generateSchemeSaleOderPDF(outputFilePath, schemeSaleOrderObject);
+        res.download(outputFilePath, `SchemeSaleOrder_${userSchemeTransactionID}.pdf`, (err) => {
             if (err) {
-                console.error("Error during file download:", err);
                 return res.status(500).json({ error: "Error Downloading PDF" });
             }
         });
     }
     catch (error) {
-        console.error("Error Generating User Scheme Information PDF:", error);
         res.status(500).json({ error: `Error Generating PDF: ${error.message}` });
     }
 };
-async function generateUserSchemeInformationPDF(outputFilePath, userScheme) {
+async function generateSchemeSaleOderPDF(outputFilePath, schemeSO) {
     const doc = new PDFDocument();
     const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
-    const fileName = `UserScheme_${userScheme.userSchemeTransactionID || 'Unknown'}.pdf`;
+    const fileName = `SchemeSaleOrder_${schemeSO.userSchemeTransactionID || 'Unknown'}.pdf`;
     const filePath = path.join(__dirname, fileName);
     doc.pipe(fs.createWriteStream(filePath));
     try {
@@ -58,19 +56,19 @@ async function generateUserSchemeInformationPDF(outputFilePath, userScheme) {
         doc.moveDown();
         const detailsX = 30;
         const newYPosition = doc.y + 10;
-        doc.font('Helvetica-Bold').fontSize(8.5).text(`${userScheme.userFullNameRequiringScheme} (${userScheme.userIdRequiringScheme})`, detailsX, newYPosition);
-        doc.font('Helvetica').fontSize(8.5).text(`${userScheme.userEmailRequiringScheme}`, detailsX, newYPosition + 9);
-        doc.font('Helvetica').fontSize(8.5).text(`${userScheme.userPhoneNoRequiringScheme}`, detailsX, newYPosition + 19);
+        doc.font('Helvetica-Bold').fontSize(8.5).text(`${schemeSO.userFullNameRequiringScheme} (${schemeSO.userIdRequiringScheme})`, detailsX, newYPosition);
+        doc.font('Helvetica').fontSize(8.5).text(`${schemeSO.userEmailRequiringScheme}`, detailsX, newYPosition + 9);
+        doc.font('Helvetica').fontSize(8.5).text(`${schemeSO.userPhoneNoRequiringScheme}`, detailsX, newYPosition + 19);
         const addressYPosition = newYPosition + 40;
         doc.font('Helvetica-Bold').fontSize(8.5).text('Delivery Address:', detailsX, addressYPosition);
-        doc.font('Helvetica').fontSize(8.5).text(`${userScheme.userDeliveryAddressRequiringScheme}`, detailsX, addressYPosition + 9.5);
+        doc.font('Helvetica').fontSize(8.5).text(`${schemeSO.userDeliveryAddressRequiringScheme}`, detailsX, addressYPosition + 9.5);
         doc.moveDown(5);
         const pageWidth = 595.28;
         const rightMargin = 15;
         const offset = 250;
         const titleX = pageWidth - rightMargin - offset;
-        doc.font('Helvetica').fontSize(8.5).text(`Scheme Order Date:${userScheme.createdAt.toDateString()}`, titleX, newYPosition);
-        doc.font('Helvetica').fontSize(8.5).text(`Scheme Order ID:${userScheme.userSchemeTransactionID}`, titleX, newYPosition + 9.5);
+        doc.font('Helvetica').fontSize(8.5).text(`Scheme Sale Order Date:${schemeSO.createdAt.toDateString()}`, titleX, newYPosition);
+        doc.font('Helvetica').fontSize(8.5).text(`Scheme Sale Order ID:${schemeSO.userSchemeTransactionID}`, titleX, newYPosition + 9.5);
         doc.moveDown(5);
         const contentX = detailsX;
         const tableX = contentX;
@@ -78,12 +76,12 @@ async function generateUserSchemeInformationPDF(outputFilePath, userScheme) {
         const headersSectionA = [60, 97, 177, 63, 70, 90];
         const headings = ['Scheme ID', 'Scheme Name', 'Scheme Short Desc.', 'Item Original Price', 'Scheme Unit Price', 'Scheme Payment Structure'];
         const values = [
-            userScheme.schemeIDUserSchemed || 'N/A',
-            userScheme.schemeNameUserSchemed || 'N/A',
-            userScheme.schemeShortDescUserSchemed || 'N/A',
-            formatCurrency(userScheme.schemeItemOriginalPriceUserSchemed) || 'N/A',
-            formatCurrency(userScheme.schemeUnitPriceUserSchemed) || 'N/A',
-            userScheme.schemePaymentStructureUserSchemed || 'N/A'
+            schemeSO.schemeIDUserSchemed || 'N/A',
+            schemeSO.schemeNameUserSchemed || 'N/A',
+            schemeSO.schemeShortDescUserSchemed || 'N/A',
+            formatCurrency(schemeSO.schemeItemOriginalPriceUserSchemed) || 'N/A',
+            formatCurrency(schemeSO.schemeUnitPriceUserSchemed) || 'N/A',
+            schemeSO.schemePaymentStructureUserSchemed || 'N/A'
         ];
         function drawSectionACell(x, y, width, height, text, isHeader = false) {
             x = x || 0;
@@ -144,13 +142,13 @@ async function generateUserSchemeInformationPDF(outputFilePath, userScheme) {
         let tableYSectionA2 = doc.y + 1;
         const headingsSectionA2 = ['Scheme Start Date', 'Scheme End Date', 'Min. Sec Deposit', 'Bal.Pyt Due Date', 'Scheme Post Date Begins', 'Expected No .of Days To Deliver', 'Expected Delivery Date'];
         const valuesSectionA2 = [
-            userScheme.schemeUserSchemedStartDate || 'N/A',
-            userScheme.schemeUserSchemedEndDate || 'N/A',
-            formatCurrency(userScheme.userSchemeMinimumSecurityDeposit) || 'N/A',
-            userScheme.schemePaymentDueDate || 'N/A',
-            userScheme.shemeUserSchemedPostDateBegins || 'N/A',
-            userScheme.expectedNoOfDaysToDeliver || 'N/A',
-            userScheme.expectedDeliveryDate || 'N/A'
+            schemeSO.schemeUserSchemedStartDate || 'N/A',
+            schemeSO.schemeUserSchemedEndDate || 'N/A',
+            formatCurrency(schemeSO.userSchemeMinimumSecurityDeposit) || 'N/A',
+            schemeSO.schemePaymentDueDate || 'N/A',
+            schemeSO.shemeUserSchemedPostDateBegins || 'N/A',
+            schemeSO.expectedNoOfDaysToDeliver || 'N/A',
+            schemeSO.expectedDeliveryDate || 'N/A'
         ];
         function drawSectionA2Cell(x, y, width, height, text, isHeader = false) {
             x = x || 0;
@@ -212,12 +210,12 @@ async function generateUserSchemeInformationPDF(outputFilePath, userScheme) {
         let tableYSectionB2 = doc.y + 5;
         const headersSectionB = ['No. of Units', 'Item ID', 'Item Name', 'Item Description', 'Item Unit Price', 'Total Price'];
         const valuesSectionB = [
-            userScheme.schemeNoOfUnitsUserSchemed + ' ' + userScheme.schemeItemUnitOfMeasure || 'N/A',
-            userScheme.schemeItemIDUserSchemed || 'N/A',
-            userScheme.schemeItemNameUserSchemed || 'N/A',
-            userScheme.schemeItemShortDescUserSchemed || 'N/A',
-            formatCurrency(userScheme.schemeUnitPriceUserSchemed) || 'N/A',
-            formatCurrency(userScheme.schemeTotalAmountUserSchemed) || 'N/A'
+            schemeSO.schemeNoOfUnitsUserSchemed + ' ' + schemeSO.schemeItemUnitOfMeasure || 'N/A',
+            schemeSO.schemeItemIDUserSchemed || 'N/A',
+            schemeSO.schemeItemNameUserSchemed || 'N/A',
+            schemeSO.schemeItemShortDescUserSchemed || 'N/A',
+            formatCurrency(schemeSO.schemeUnitPriceUserSchemed) || 'N/A',
+            formatCurrency(schemeSO.schemeTotalAmountUserSchemed) || 'N/A'
         ];
         function drawSectionB2Cell(x, y, width, height, text, isHeader = false) {
             x = x || 0;
@@ -311,22 +309,22 @@ async function generateUserSchemeInformationPDF(outputFilePath, userScheme) {
         }
         ;
         drawSectionB2HeaderRow();
-        function calculateSchemeBalance(event, userScheme) {
-            if (!event || !event.type || !userScheme) {
-                console.error('Invalid Event or User Scheme Information Provided');
+        function calculateSchemeBalance(event, schemeSO) {
+            if (!event || !event.type || !schemeSO) {
+                console.error('Invalid Event or Scheme Sale Order Information Provided');
                 return 0;
             }
             switch (event.type) {
                 case 'BookScheme': {
-                    const schemePaymentBalanceAtBooking = userScheme.RemittanceBalanceToBePaidDetails.find((bookScheme) => bookScheme.isRemittanceForSchemeFirstPayment);
-                    return (schemePaymentBalanceAtBooking?.remittanceExpectedBalToBePaidOnScheme ?? userScheme.RemittanceBalanceToBePaidDetails[0]?.remittanceExpectedBalToBePaidOnScheme ?? 0);
+                    const schemePaymentBalanceAtBooking = schemeSO.RemittanceBalanceToBePaidDetails.find((bookScheme) => bookScheme.isRemittanceForSchemeFirstPayment);
+                    return (schemePaymentBalanceAtBooking?.remittanceExpectedBalToBePaidOnScheme ?? schemeSO.RemittanceBalanceToBePaidDetails[0]?.remittanceExpectedBalToBePaidOnScheme ?? 0);
                 }
                 case 'FirstRemittanceSchemeUponBooking': {
-                    const firstRemittanceUponBooking = userScheme.RemittanceBalanceToBePaidDetails.find((firstRemittancePayment) => firstRemittancePayment.isRemittanceForSchemeFirstPayment);
-                    return (firstRemittanceUponBooking?.endingBalanceAfterLastRemittanceOnScheme ?? userScheme.RemittanceBalanceToBePaidDetails[0]?.endingBalanceAfterLastRemittanceOnScheme ?? 0);
+                    const firstRemittanceUponBooking = schemeSO.RemittanceBalanceToBePaidDetails.find((firstRemittancePayment) => firstRemittancePayment.isRemittanceForSchemeFirstPayment);
+                    return (firstRemittanceUponBooking?.endingBalanceAfterLastRemittanceOnScheme ?? schemeSO.RemittanceBalanceToBePaidDetails[0]?.endingBalanceAfterLastRemittanceOnScheme ?? 0);
                 }
                 case 'SubsequentRemittance': {
-                    const remittanceEntries = userScheme.RemittanceBalanceToBePaidDetails.filter((remittanceScheme) => new Date(remittanceScheme.remitDateOnScheme).getTime() === new Date(event.data.remitDateOnScheme).getTime());
+                    const remittanceEntries = schemeSO.RemittanceBalanceToBePaidDetails.filter((remittanceScheme) => new Date(remittanceScheme.remitDateOnScheme).getTime() === new Date(event.data.remitDateOnScheme).getTime());
                     const latestRemittance = remittanceEntries.length > 0 ? remittanceEntries[remittanceEntries.length - 1] : null;
                     return latestRemittance?.endingBalanceAfterLastRemittanceOnScheme ?? 0;
                 }
@@ -337,14 +335,14 @@ async function generateUserSchemeInformationPDF(outputFilePath, userScheme) {
             }
         }
         ;
-        function drawSectionB2TransactionRows(values, event, userScheme, columnWidths, headersSectionB2) {
+        function drawSectionB2TransactionRows(values, event, schemeSaleOrder, columnWidths, headersSectionB2) {
             let currentX = tableX;
             let maxRowHeight = 0;
             if (event.type === 'RemittanceScheme' && parseFloat(values[3]) === 0) {
                 console.log('Skipping row due to zero remittance amount');
                 return;
             }
-            let balance = parseFloat(values[4]) || calculateSchemeBalance(event, userScheme);
+            let balance = parseFloat(values[4]) || calculateSchemeBalance(event, schemeSaleOrder);
             const safeSchemeBalance = isNaN(balance) ? 0 : balance;
             const formattedBalance = formatCurrency(safeSchemeBalance);
             values[4] = formattedBalance;
@@ -371,16 +369,16 @@ async function generateUserSchemeInformationPDF(outputFilePath, userScheme) {
             tableY += maxRowHeight;
             doc.fillColor('black');
         }
-        const sortSchemeEvents = (userScheme) => {
+        const sortSchemeEvents = (schemeSaleOrder) => {
             const events = [];
             console.log("🔍 Sorted Events:", events);
-            if (userScheme.StatingBalanceOnSchemeHistory) {
-                userScheme.StatingBalanceOnSchemeHistory.forEach((detail) => {
+            if (schemeSaleOrder.StatingBalanceOnSchemeHistory) {
+                schemeSaleOrder.StatingBalanceOnSchemeHistory.forEach((detail) => {
                     events.push({ type: 'BookScheme', data: detail });
                 });
             }
-            if (userScheme.RemittanceBalanceToBePaidDetails) {
-                const sortedRemittanceHistory = userScheme.RemittanceBalanceToBePaidDetails.sort((a, b) => new Date(a.remitOnSchemeDate).getTime() - new Date(b.remitOnSchemeDate).getTime());
+            if (schemeSaleOrder.RemittanceBalanceToBePaidDetails) {
+                const sortedRemittanceHistory = schemeSaleOrder.RemittanceBalanceToBePaidDetails.sort((a, b) => new Date(a.remitOnSchemeDate).getTime() - new Date(b.remitOnSchemeDate).getTime());
                 sortedRemittanceHistory.forEach((detail, index) => {
                     if (index === 0) {
                         events.push({ type: 'FirstRemittanceSchemeUponBooking', data: detail });
@@ -401,9 +399,9 @@ async function generateUserSchemeInformationPDF(outputFilePath, userScheme) {
             return latestBalance !== undefined ? latestBalance.toString() : 'No Balance Available';
         }
         ;
-        function handleSchemeInformationForPDF(userScheme) {
-            console.log(`Searching for UserScheme ID: ${userScheme.userSchemeTransactionID}`);
-            const sortEvents = sortSchemeEvents(userScheme);
+        function handleSchemeInformationForPDF(schemeSaleOrder) {
+            console.log(`Searching for UserScheme ID: ${schemeSaleOrder.userSchemeTransactionID}`);
+            const sortEvents = sortSchemeEvents(schemeSaleOrder);
             let currentPage = doc.page;
             let tableY = tableX + 50;
             sortEvents.forEach((event) => {
@@ -412,7 +410,7 @@ async function generateUserSchemeInformationPDF(outputFilePath, userScheme) {
                 if (event.type === 'BookScheme') {
                     const { startSchemeDate, startingBalanceRemarksOnScheme, startingBalanceOnScheme } = event.data;
                     const getStartBalance = formatCurrency(parseFloat(startingBalanceOnScheme?.toString() || '0'));
-                    const firstRemittance = userScheme.RemittanceBalanceToBePaidDetails[0];
+                    const firstRemittance = schemeSaleOrder.RemittanceBalanceToBePaidDetails[0];
                     const initialBalance = firstRemittance?.remittanceExpectedBalToBePaidOnScheme || 0;
                     rowValues = [
                         formatDateTime(startSchemeDate) ?? 'N/A',
@@ -449,18 +447,16 @@ async function generateUserSchemeInformationPDF(outputFilePath, userScheme) {
                     ];
                 }
                 if (shouldIncludeRow) {
-                    drawSectionB2TransactionRows(rowValues, event, userScheme, headersSectionB2, headersSectionB2);
+                    drawSectionB2TransactionRows(rowValues, event, schemeSaleOrder, headersSectionB2, headersSectionB2);
                 }
             });
         }
         function drawFooter() {
             const generatedDate = new Date().toDateString();
-            doc.fontSize(7).text(`Generated on Service: ${generatedDate}`, 30, doc.page.height - 50, {
-                align: 'center'
-            });
+            doc.fontSize(7).text(`Generated on Service: ${generatedDate}`, 30, doc.page.height - 50, { align: 'center' });
         }
         ;
-        handleSchemeInformationForPDF(userScheme);
+        handleSchemeInformationForPDF(schemeSO);
         doc.on('end', drawFooter);
         doc.end();
         console.log('PDF Generated Successfully on Controller:', filePath);
@@ -468,6 +464,7 @@ async function generateUserSchemeInformationPDF(outputFilePath, userScheme) {
     catch (error) {
         console.error('Error Including Logo:', error);
     }
+    console.log('PDF Generation Completed:', filePath);
 }
 ;
-export default UserSchemePDFController;
+export default SchemeSaleOrderPDFController;

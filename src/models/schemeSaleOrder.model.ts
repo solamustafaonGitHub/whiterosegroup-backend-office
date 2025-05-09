@@ -36,7 +36,7 @@ interface ITotalRemittancesMadeSoFar {
 
 
 // Define the createScheme interface
-interface IUserScheme extends Document {
+interface ISchemeSaleOrder extends Document {
     events: any[];
     RemittanceSchemeHistory: any;
     schemeTransactionHistory: any;
@@ -80,9 +80,9 @@ interface IUserScheme extends Document {
 };
 
 //Define the createUserScheme Schema 
-const userSchemeSchema = new Schema<IUserScheme>({
+const SchemeSaleOrderSchema = new Schema<ISchemeSaleOrder>({
     userSchemeTransactionID: {type:String, default:generateCombinedShortId, unique:true},
-    userRefIdRequiringScheme: {type:Schema.Types.ObjectId, ref:'ActiveUser', required:true},
+    userRefIdRequiringScheme: {type:Schema.Types.ObjectId, ref:'ActiveSubscriber', required:true},
     userIdRequiringScheme: {type:String},
     userFullNameRequiringScheme: {type:String},
     userEmailRequiringScheme: {type:String},
@@ -140,7 +140,7 @@ const userSchemeSchema = new Schema<IUserScheme>({
 
 
 //Pre-Save to ensure userSchemeTransactionID is generated and valid
-userSchemeSchema.pre('save', function(next) {
+SchemeSaleOrderSchema.pre('save', function(next) {
     if (this.isNew) {
         this.userSchemeTransactionID = generateCombinedShortId();
     }
@@ -148,13 +148,13 @@ userSchemeSchema.pre('save', function(next) {
 });
 
 //Pre-save hook to ensure schemeIDUserSchemed allows multiple userSchemeTransactionID to be created
-userSchemeSchema.pre('save', function(next) {
+SchemeSaleOrderSchema.pre('save', function(next) {
     this.schemeRefIDUserSchemed = new mongoose.Types.ObjectId(this.schemeRefIDUserSchemed);
     next();
 });
 
 //Pre-save hook to ensure userFullNameRequiringScheme, userEmailRequiringScheme, userPhoneNoRequiringScheme and userDeliveryAddressRequiringScheme are based on the ActiveUser model
-userSchemeSchema.pre<IUserScheme>('save', async function(next) {
+SchemeSaleOrderSchema.pre<ISchemeSaleOrder>('save', async function(next) {
     try{
         const activeUserRequiringScheme = await ActiveSubscriber.findById(this.userRefIdRequiringScheme).exec();
             if(activeUserRequiringScheme){
@@ -195,7 +195,7 @@ userSchemeSchema.pre<IUserScheme>('save', async function(next) {
     });
 
 //Populate the schemePoolDetailsUpdate array of the SchemeInformationProfile model whenever a new userSchemeTransactionID is created
-userSchemeSchema.post<IUserScheme>('save', async function (doc, next) {
+SchemeSaleOrderSchema.post<ISchemeSaleOrder>('save', async function (doc, next) {
     try {
         // Find the scheme information and update the pool details
         const schemeInformation = await SchemeInformation.findById(doc.schemeRefIDUserSchemed).exec();
@@ -220,7 +220,7 @@ userSchemeSchema.post<IUserScheme>('save', async function (doc, next) {
 });
 
 //Pre-save hook to ensure that the schemeUserSchemedStartDate is not greater than the schemeUserSchemedEndDate
-userSchemeSchema.pre<IUserScheme>('save', function(next) {
+SchemeSaleOrderSchema.pre<ISchemeSaleOrder>('save', function(next) {
     if (this.schemeUserSchemedStartDate > this.schemeUserSchemedEndDate) {
         return next(new Error('The schemeUserSchemedStartDate cannot be greater than the schemeUserSchemedEndDate'));
     }
@@ -228,37 +228,37 @@ userSchemeSchema.pre<IUserScheme>('save', function(next) {
 });
 
 //Pre-save hook to ensure schemeTotalAmountUserSchemed is calculated based on schemeUnitPrice and schemeNoOfUnitsUserSchemed
-userSchemeSchema.pre('save', function(next) {
+SchemeSaleOrderSchema.pre('save', function(next) {
     this.schemeTotalAmountUserSchemed = this.schemeUnitPriceUserSchemed * this.schemeNoOfUnitsUserSchemed;
     next();
 });
 
 //Pre-save hook to ensure schemeDiscountWavedUserSchemed is calculated based on noOfUnitsUserSchemed & schemeDiscountWaved from SchemeInformationProfile   
-userSchemeSchema.pre('save', function(next) {
+SchemeSaleOrderSchema.pre('save', function(next) {
     this.schemeDiscountWavedUserSchemed = (this.schemeNoOfUnitsUserSchemed * this.schemeItemOriginalPriceUserSchemed) - (this.schemeNoOfUnitsUserSchemed * this.schemeUnitPriceUserSchemed);
     next();
 });
 
 //Pre-save hook to ensure schemePaymentDueDate is automatically set to 1 day before schemeUserSchemedEndDate
-userSchemeSchema.pre('save', function(next) {
+SchemeSaleOrderSchema.pre('save', function(next) {
     this.schemePaymentDueDate = new Date(this.schemeUserSchemedEndDate.getTime() - (1 * 24 * 60 * 60 * 1000));
     next();
 });
 
 //Pre-save hook to ensure schemeTotalSecurityDeposit is calculated based on userSchemeMinimumSecurityDeposit and schemeNoOfUnitsUserSchemed
-userSchemeSchema.pre('save', function(next) {
+SchemeSaleOrderSchema.pre('save', function(next) {
     this.schemeTotalSecurityDeposit = this.userSchemeMinimumSecurityDeposit * this.schemeNoOfUnitsUserSchemed;
     next();
 });
 
 //Pre-save hook to ensure schemeBalancePaymentBeforeDueDate is calculated based on schemeTotalAmountUserSchemed and schemeTotalSecurityDeposit
-userSchemeSchema.pre('save', function(next) {
+SchemeSaleOrderSchema.pre('save', function(next) {
     this.schemeBalancePaymentBeforeDueDate = this.schemeTotalAmountUserSchemed - this.schemeTotalSecurityDeposit;
     next();
 });
 
 //Pre-save hook to ensure that no user can scheme more than the reamining units vailable in the scheme pool
-userSchemeSchema.pre<IUserScheme>('save', async function(next) {
+SchemeSaleOrderSchema.pre<ISchemeSaleOrder>('save', async function(next) {
     try {
         const schemeInformation = await SchemeInformation.findById(this.schemeRefIDUserSchemed).exec();
         if (schemeInformation) {
@@ -273,7 +273,7 @@ userSchemeSchema.pre<IUserScheme>('save', async function(next) {
 });
 
 //Pre-save hook to ensure that AmountdDepositedForSchemeByUser cannot exceed the value of schemeTotalAmountUserSchemed
-userSchemeSchema.pre<IUserScheme>('save', function(next) {
+SchemeSaleOrderSchema.pre<ISchemeSaleOrder>('save', function(next) {
     if (this.amountdDepositedForSchemeByUser > this.schemeTotalAmountUserSchemed) {
         return next(new Error('The Amount To Be Paid Cannot Be Greater Than: ' + ' ' + this.schemeTotalAmountUserSchemed));
     }
@@ -282,7 +282,7 @@ userSchemeSchema.pre<IUserScheme>('save', function(next) {
 
 
 //Pre-save hook to ensure that amountPaidByUser is not less than (schemeTotalSecurityDeposit * schemeNoOfUnitsUserSchemed)
-userSchemeSchema.pre<IUserScheme>('save', function(next) {
+SchemeSaleOrderSchema.pre<ISchemeSaleOrder>('save', function(next) {
     if (this.amountdDepositedForSchemeByUser < (this.userSchemeMinimumSecurityDeposit * this.schemeNoOfUnitsUserSchemed)) {
         const amountUserMustPay = this.userSchemeMinimumSecurityDeposit * this.schemeNoOfUnitsUserSchemed;
         return next(new Error('The amountPaidByUser cannot be less than: ' + ' ' + amountUserMustPay));
@@ -290,7 +290,7 @@ userSchemeSchema.pre<IUserScheme>('save', function(next) {
     next();
 });
 
-userSchemeSchema.pre<IUserScheme>('save', function (next) {
+SchemeSaleOrderSchema.pre<ISchemeSaleOrder>('save', function (next) {
 // Ensure `StatingBalanceOnSchemeHistory` is only populated once
     if (!this.StatingBalanceOnSchemeHistory || this.StatingBalanceOnSchemeHistory.length === 0) {
         this.StatingBalanceOnSchemeHistory.push({
@@ -328,7 +328,7 @@ userSchemeSchema.pre<IUserScheme>('save', function (next) {
     next();
 });
 
-// Export the createUserScheme model
-const UserScheme = model<IUserScheme>('UserScheme', userSchemeSchema);
-export {UserScheme, IUserScheme};
+//Export the SchemSaleOrder model
+const SchemeSaleOrder = model<ISchemeSaleOrder>('SchemeSaleOrder', SchemeSaleOrderSchema);
+export {SchemeSaleOrder, ISchemeSaleOrder};
 

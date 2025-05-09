@@ -54,8 +54,7 @@ const AmortizationScheduleSchema = new Schema<IAmortizationSchedule>({
 
 
 //Define the Interface for the main PaymentPlan
-interface IPaymentPlan extends Document {
-    paymentPlanId: string;
+interface IPaymentPlanForFractionalOwnership extends Document {
     paymentPlanName: string;
     paymentPlanDescription: string;
     paymentType: string;
@@ -67,12 +66,12 @@ interface IPaymentPlan extends Document {
     OtherApplicableFlatFees: IOtherApplicableFlatFees[];
     OtherApplicablePercentageFees: IOtherApplicablePercentageFees[];
     AmortizationSchedule: IAmortizationSchedule[];
+    paymentPlanId: string;
     createdOn: Date;
     lastUpdatedAt: Date;
 };
 //Define the Schema for the PaymentPlan Structure
-const PaymentPlanSchema = new Schema<IPaymentPlan>({
-    paymentPlanId: {type:String, unique:true, default:generateCombinedPaymentPlanShortId},
+const PaymentPlanForFractionalOwnershipSchema = new Schema<IPaymentPlanForFractionalOwnership>({
     paymentPlanName: {type:String, required:true},
     paymentPlanDescription: {type:String, required:true},
     paymentType: {type:String, required:true},
@@ -93,6 +92,7 @@ const PaymentPlanSchema = new Schema<IPaymentPlan>({
         TotalPayablePerFrequency: {type:Number},
         BalanceToBePaidPerFrequency: {type:Number}
     }],
+    paymentPlanId: {type:String, unique:true, default:generateCombinedPaymentPlanShortId},
     createdOn: {type:Date, default:Date.now, required:true},
     lastUpdatedAt: {type:Date, default:Date.now, required:true}
 });
@@ -101,7 +101,7 @@ const PaymentPlanSchema = new Schema<IPaymentPlan>({
 
 //--------------------Pre-save hooks-------------------------------------------------------
 //Pre-save hook to ensure that the paymentPlanId is saved 
-PaymentPlanSchema.pre('save', function(next){
+PaymentPlanForFractionalOwnershipSchema.pre('save', function(next){
     if(this.paymentPlanId === null || this.paymentPlanId === undefined){
         this.paymentPlanId = generateCombinedPaymentPlanShortId();
     }
@@ -109,7 +109,7 @@ PaymentPlanSchema.pre('save', function(next){
 });
 
 //Pre-save hook to set the interestFeeValue
-PaymentPlanSchema.pre('save', function(next){
+PaymentPlanForFractionalOwnershipSchema.pre('save', function(next){
     if(this.interestRateIfRequired > 0){
         this.interestFeeAccumulatedFaceValue = this.fractionalUnitPropertyAmount * (this.interestRateIfRequired / 100) * (this.paymentDurationInMonths / 12);
     }
@@ -117,7 +117,7 @@ PaymentPlanSchema.pre('save', function(next){
 });
 
 //Pre-save hook to set the percentageFaceValue for the OtherApplicablePercentageFees
-PaymentPlanSchema.pre('save', function(next){
+PaymentPlanForFractionalOwnershipSchema.pre('save', function(next){
     if(this.OtherApplicablePercentageFees){
         this.OtherApplicablePercentageFees.forEach((fee) => {
             fee.percentageFaceValue = (this.fractionalUnitPropertyAmount * (fee.percentageRate / 100)/10);
@@ -127,7 +127,7 @@ PaymentPlanSchema.pre('save', function(next){
 });
 
 //Pre-save hook to populate the amortizationSchedule array
-PaymentPlanSchema.pre('save', function (next) {
+PaymentPlanForFractionalOwnershipSchema.pre('save', function (next) {
     if (!this.fractionalUnitPropertyAmount) {
         return next(new Error("Total Amount To Be Amortized is Required"));
     }
@@ -172,6 +172,6 @@ PaymentPlanSchema.pre('save', function (next) {
 });
 
 //Register the Schemas as a Models
-const PaymentPlan = model<IPaymentPlan>('PaymentPlan', PaymentPlanSchema);
+const PaymentPlanForFractionalOwnership = model<IPaymentPlanForFractionalOwnership>('PaymentPlanForFractionalOwnership', PaymentPlanForFractionalOwnershipSchema);
 const AmortizationSchedule = model<IAmortizationSchedule>('AmortizationSchedule', AmortizationScheduleSchema);
-export {PaymentPlan, IPaymentPlan, AmortizationSchedule, IAmortizationSchedule};
+export {PaymentPlanForFractionalOwnership, IPaymentPlanForFractionalOwnership, AmortizationSchedule, IAmortizationSchedule};

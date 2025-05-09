@@ -1,5 +1,5 @@
 import mongoose, {Schema, Document, model, CallbackError} from 'mongoose';
-import {UserScheme, IUserScheme} from './userScheme.model.js';
+import {SchemeSaleOrder, ISchemeSaleOrder} from './schemeSaleOrder.model.js';
 import {PaymentClass, IPaymentClass} from './paymentClass.model.js';
 import {UpdateItemPrice} from './updateItemPrice.model.js';
 import {generateCombinedRemittanceShortId } from '../utils/generateCombinedRemittanceShortId.utils.js';

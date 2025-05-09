@@ -25,7 +25,7 @@ const AmortizationScheduleSchema = new Schema({
     BalanceToBePaidPerFrequency: { type: Number }
 });
 ;
-const PaymentPlanSchema = new Schema({
+const PaymentPlanForFractionalOwnershipSchema = new Schema({
     paymentPlanName: { type: String, required: true },
     paymentPlanDescription: { type: String, required: true },
     paymentType: { type: String, required: true },
@@ -50,19 +50,19 @@ const PaymentPlanSchema = new Schema({
     createdOn: { type: Date, default: Date.now, required: true },
     lastUpdatedAt: { type: Date, default: Date.now, required: true }
 });
-PaymentPlanSchema.pre('save', function (next) {
+PaymentPlanForFractionalOwnershipSchema.pre('save', function (next) {
     if (this.paymentPlanId === null || this.paymentPlanId === undefined) {
         this.paymentPlanId = generateCombinedPaymentPlanShortId();
     }
     next();
 });
-PaymentPlanSchema.pre('save', function (next) {
+PaymentPlanForFractionalOwnershipSchema.pre('save', function (next) {
     if (this.interestRateIfRequired > 0) {
         this.interestFeeAccumulatedFaceValue = this.fractionalUnitPropertyAmount * (this.interestRateIfRequired / 100) * (this.paymentDurationInMonths / 12);
     }
     next();
 });
-PaymentPlanSchema.pre('save', function (next) {
+PaymentPlanForFractionalOwnershipSchema.pre('save', function (next) {
     if (this.OtherApplicablePercentageFees) {
         this.OtherApplicablePercentageFees.forEach((fee) => {
             fee.percentageFaceValue = (this.fractionalUnitPropertyAmount * (fee.percentageRate / 100) / 10);
@@ -70,7 +70,7 @@ PaymentPlanSchema.pre('save', function (next) {
     }
     next();
 });
-PaymentPlanSchema.pre('save', function (next) {
+PaymentPlanForFractionalOwnershipSchema.pre('save', function (next) {
     if (!this.fractionalUnitPropertyAmount) {
         return next(new Error("Total Amount To Be Amortized is Required"));
     }
@@ -101,6 +101,6 @@ PaymentPlanSchema.pre('save', function (next) {
     }
     next();
 });
-const PaymentPlan = model('PaymentPlan', PaymentPlanSchema);
+const PaymentPlanForFractionalOwnership = model('PaymentPlanForFractionalOwnership', PaymentPlanForFractionalOwnershipSchema);
 const AmortizationSchedule = model('AmortizationSchedule', AmortizationScheduleSchema);
-export { PaymentPlan, AmortizationSchedule };
+export { PaymentPlanForFractionalOwnership, AmortizationSchedule };

@@ -4,7 +4,7 @@ import { generateCombinedPropertyID } from '../utils/generateCombinedPropertyID.
 import { generateBlockShortId } from '../utils/generateBlockShortId.utils.js';
 import { generateHouseShortId } from '../utils/generateHouseShortId.utils.js';
 import { generatePropertyListingShortId } from '../utils/generatePropertyListingID.utils.js';
-import { PaymentPlan } from './paymentPlan.model.js';
+import { PaymentPlanForFractionalOwnership } from './paymentPlanForFractionalOwnership.model.js';
 ;
 ;
 ;
@@ -42,7 +42,7 @@ const project214Schema = new Schema({
                 }]
         }],
     MultiSelectPaymentPlan: { selectedPlans: [{
-                plan: { type: Schema.Types.ObjectId, ref: 'PaymentPlan' },
+                plan: { type: Schema.Types.ObjectId, ref: 'PaymentPlanForFractionalOwnership' },
                 selectedPlanName: { type: String }
             }] },
     createdAt: { type: Date, default: Date.now },
@@ -142,7 +142,7 @@ project214Schema.pre('save', function (next) {
 project214Schema.pre('save', async function (next) {
     try {
         if (this.MultiSelectPaymentPlan.selectedPlans) {
-            const selectedPaymentPlan = await PaymentPlan.find({ _id: { $in: this.MultiSelectPaymentPlan.selectedPlans.map(plan => plan.plan) } });
+            const selectedPaymentPlan = await PaymentPlanForFractionalOwnership.find({ _id: { $in: this.MultiSelectPaymentPlan.selectedPlans.map(plan => plan.plan) } });
             if (selectedPaymentPlan) {
                 this.MultiSelectPaymentPlan.selectedPlans.forEach((selectedPlan) => {
                     const plan = selectedPaymentPlan.find(plan => plan._id.toString() === selectedPlan.plan.toString());

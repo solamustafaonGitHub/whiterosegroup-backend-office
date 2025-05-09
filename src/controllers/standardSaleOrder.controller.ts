@@ -7,7 +7,7 @@ import {Request, Response} from "express";
 import formatCurrency from "../utils/formatCurrency.utils.js";
 import formatDateTime from "../utils/formatDateTime.utils.js";
 
-import {StandardPurchaseOrder, IStandardPurchaseOrder} from '../models/standardPurchaseOrder.model.js';
+import {StandardSaleOrder, IStandardSaleOrder} from "../models/standardSaleOrder.model.js";
 
 import pkg from 'pdfkit';
 const {x,y} = pkg;
@@ -15,28 +15,27 @@ const {x,y} = pkg;
 
 //Define the ITransformedRemittance interface
 interface ITransformedRemittance {
-    TotalPaymentsMadeSoFarOnStandardPO: string;
-    remittanceDateOnStandardPO?: Date;
-    remittanceAmountOnStandardPO: number;
-    remittanceRemarksOnStandardPO: string;
+    TotalPaymentsMadeSoFarOnStandardSaleInvoice: string;
+    remittanceDateOnStandardSaleInvoice?: Date;
+    remittanceAmountOnStandardSaleInvoice: number;
+    remittanceRemarksOnStandardSaleInvoice: string;
 };
 
 //Define the IStandardPurchaseOrderItemsGrandTotal interface
-interface IStandardPurchaseOrderItemsGrandTotal {
-    standardPurchaseOrderItemsGrandTotal: number;
+interface IStandardSaleInvoiceItemsGrandTotal {
+    standardSaleInvoiceItemsGrandTotal: number;
 };
-
 //Define the interfaces for the event, purchase order, remittance details, and total remittance
 interface Event {
     type: string;
     data?: any;
 };
-interface PurchaseOrder {
+interface SaleInvoice {
     remittanceBalanceToBePaidDetails?: RemittanceDetails[];
     totalRemittanceMadeSoFar?: TotalRemittance[];
 };
 interface RemittanceDetails {
-    remitDateOnPO?: string;
+    remitDateOnSaleInvoice?: string;
     endingBalanceAfterLastRemittance?: number;
 };
 interface TotalRemittance {
@@ -45,63 +44,63 @@ interface TotalRemittance {
 
 
 //Function to generate the purchase order PDF
-export const StandardPurchaseOrderPDFController = async (req:Request, res:Response) => {
-    const standardPurchaseOrderId = req.params.id;
+export const StandardSaleOrderPDFController = async (req:Request, res:Response) => {
+    const standardSaleInvoiceId = req.params.id;
     try {
         //Fetch the standard purchase order
-        const standardPO = await StandardPurchaseOrder.findOne({standardPurchaseOrderId});
-        if (!standardPO) {
-            return res.status(404).json({error: "Standard Purchase Order Not Found"});
+        const standardSI = await StandardSaleOrder.findOne({standardSaleInvoiceId});
+        if (!standardSI) {
+            return res.status(404).json({error:"Standard Sales Invoice Not Found"});
         }
         //Convert the document to a plain object
-        const standardPurchaseOrderObject = standardPO.toObject() as IStandardPurchaseOrder & {transformedRemittance?:ITransformedRemittance[]};
+        const standardSaleInvoiceObject = standardSI.toObject() as IStandardSaleOrder & {transformedRemittance?:ITransformedRemittance[]};
         //Calculate the grand total of all items
-        standardPurchaseOrderObject.StandardPurchaseOrderItemsGrandTotal = [
+        standardSaleInvoiceObject.StandardSaleInvoiceItemsGrandTotal = [
             {
-                standardPurchaseOrderItemsGrandTotal: standardPurchaseOrderObject.StandardPurchaseOrderItems.reduce((total, item) => total + (item.standardPurchaseOrderTotalStartPrice || 0), 0)
+                standardSaleInvoiceItemsGrandTotal: standardSaleInvoiceObject.StandardSaleInvoiceItems.reduce((total, item) => total + (item.standardSaleInvoiceTotalStartPrice || 0), 0)
             }
-        ] as IStandardPurchaseOrderItemsGrandTotal[];
+        ] as IStandardSaleInvoiceItemsGrandTotal[];
         //Transform remittance data for each item
-        standardPurchaseOrderObject.transformedRemittance = [];
-        standardPurchaseOrderObject.StandardPurchaseOrderItems.forEach((item) => {
-            if ('TotalRemittanceMadeSoFarOnStandardPO' in item && item.TotalRemittanceMadeSoFarOnStandardPO) {
-                const transformed = (item.TotalRemittanceMadeSoFarOnStandardPO as Array<{ TotalPaymentsMadeSoFarOnStandardPO?: number; remittedDateOnStandardPO?: string; remittedAmountOnStandardPO?: number; remittedRemarksOnStandardPO?: string }>).map((remittance) => {
-                    if (typeof remittance === 'object' && 'TotalPaymentsMadeSoFarOnStandardPO' in remittance) {
+        standardSaleInvoiceObject.transformedRemittance = [];
+        standardSaleInvoiceObject.StandardSaleInvoiceItems.forEach((item) => {
+            if ('TotalRemittanceMadeSoFarOnStandardSaleInvoice' in item && item.TotalRemittanceMadeSoFarOnStandardSaleInvoice) {
+                const transformed = (item.TotalRemittanceMadeSoFarOnStandardSaleInvoice as Array<{ TotalPaymentsMadeSoFarOnStandardSaleInvoice?: number; remittedDateOnStandardSaleInvoice?: string; remittedAmountOnStandardSaleInvoice?: number; remittedRemarksOnStandardSaleInvoice?: string }>).map((remittance) => {
+                    if (typeof remittance === 'object' && 'TotalPaymentsMadeSoFarOnStandardSaleInvoice' in remittance) {
                         return {
-                            TotalPaymentsMadeSoFarOnStandardPO: remittance.TotalPaymentsMadeSoFarOnStandardPO?.toString() || '0',
-                            remittanceDateOnStandardPO: remittance.remittedDateOnStandardPO ? new Date(remittance.remittedDateOnStandardPO) : undefined,
-                            remittanceAmountOnStandardPO: parseFloat(remittance.remittedAmountOnStandardPO?.toString() || '0'),
-                            remittanceRemarksOnStandardPO: remittance.remittedRemarksOnStandardPO?.toString() || '',
+                            TotalPaymentsMadeSoFarOnStandardSaleInvoice: remittance.TotalPaymentsMadeSoFarOnStandardSaleInvoice?.toString() || '0',
+                            remittanceDateOnStandardSaleInvoice: remittance.remittedDateOnStandardSaleInvoice ? new Date(remittance.remittedDateOnStandardSaleInvoice) : undefined,
+                            remittanceAmountOnStandardSaleInvoice: parseFloat(remittance.remittedAmountOnStandardSaleInvoice?.toString() || '0'),
+                            remittanceRemarksOnStandardSaleInvoice: remittance.remittedRemarksOnStandardSaleInvoice?.toString() || '',
                         } as ITransformedRemittance;
                     } else {
                         return null;
                     }
                 }).filter(item => item !== null) as ITransformedRemittance[];
                 // Add transformed remittance data to the main object
-                standardPurchaseOrderObject.transformedRemittance.push(...transformed);
+                standardSaleInvoiceObject.transformedRemittance.push(...transformed);
                 }
             });
             //Generate the PDF
-            const outputFilePath = path.resolve(`./pdfs/standardPO_${standardPurchaseOrderId}.pdf`);
-            await generateStandardPurchaseOrderPDF(outputFilePath, standardPurchaseOrderObject);
+            const outputFilePath = path.resolve(`./pdfs/standardSI_${standardSaleInvoiceId}.pdf`);
+            await generateStandardSaleInvoicePDF(outputFilePath, standardSaleInvoiceObject);
             //Send the PDF as a response
-            res.download(outputFilePath, `StandardPurchaseOrder_${standardPurchaseOrderId}.pdf`, (err) => {
+            res.download(outputFilePath, `StandardSaleInvoice_${standardSaleInvoiceId}.pdf`, (err) => {
                 if (err) {
                     console.error("Error during File Download:");
                     return res.status(500).json({ error:"Error Downloading PDF" });
                 }
             });
          } catch (error) {
-            console.error("Error Generating Standard Purchase Order PDF:", error);
-            res.status(500).json({ error: `Error Generating PDF: ${(error as Error).message}` });
+            console.error("Error Generating Sale Invoice PDF:", error);
+            res.status(500).json({ error: `Error Generating PDF: ${(error as Error).message}`});
             }
         };
 
 //Function to generate the purchase order PDF
-async function generateStandardPurchaseOrderPDF(outputFilePath:string, standardPO:IStandardPurchaseOrder & {transformedRemittance?: ITransformedRemittance[]}):Promise<void> {
+async function generateStandardSaleInvoicePDF(outputFilePath:string, standardSI:IStandardSaleOrder & {transformedRemittance?: ITransformedRemittance[]}):Promise<void> {
     const doc = new PDFDocument();
     const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
-    const fileName = `StandardPurchaseOrder_${standardPO.standardPurchaseOrderId || 'Unknown'}.pdf`;
+    const fileName = `StandardSaleInvoice_${standardSI.standardSaleInvoiceId || 'Unknown'}.pdf`;
     const filePath = path.join(__dirname, fileName);
     doc.pipe(fs.createWriteStream(filePath));
     try {
@@ -123,16 +122,15 @@ async function generateStandardPurchaseOrderPDF(outputFilePath:string, standardP
     doc.font('Helvetica').fontSize(8.5).text('_________________________________________________________________________________________', textCompInfo, 94);
     doc.moveDown(1);
 
-
     const detailsX = 30;
     const newYTextPosition = doc.y + 10;
-    const userFullName = standardPO.standardPOrderUserProfileFullName || 'Unknown User';
+    const userFullName = standardSI.standardSaleInvoiceUserProfileFullName || 'Unknown User';
     doc.font('Helvetica-Bold').fontSize(8.5).text(userFullName, detailsX, newYTextPosition);
-    doc.font('Helvetica').fontSize(8.5).text(`${standardPO.standardPOrderUserProfileEmail}`, detailsX, newYTextPosition + 9);
-    doc.font('Helvetica').fontSize(8.5).text(`${standardPO.standardPOrderUserProfilePhoneNo}`, detailsX, newYTextPosition + 19);
+    doc.font('Helvetica').fontSize(8.5).text(`${standardSI.standardSaleInvoiceUserProfileEmail}`, detailsX, newYTextPosition + 9);
+    doc.font('Helvetica').fontSize(8.5).text(`${standardSI.standardSaleInvoiceUserProfilePhoneNo}`, detailsX, newYTextPosition + 19);
     const addressYPosition = newYTextPosition + 40;
     doc.font('Helvetica-Bold').fontSize(8.5).text('Delivery Address:', detailsX, addressYPosition);
-    doc.font('Helvetica').fontSize(8.5).text(`${standardPO.standardPOrderUserDeliveryAddress}`, detailsX, addressYPosition + 9.5);
+    doc.font('Helvetica').fontSize(8.5).text(`${standardSI.standardSaleInvoiceUserDeliveryAddress}`, detailsX, addressYPosition + 9.5);
 
     doc.moveDown(5);
 
@@ -140,9 +138,9 @@ async function generateStandardPurchaseOrderPDF(outputFilePath:string, standardP
     const rightMargin = 15;
     const offset = 250;
     const titleX = pageWidth - rightMargin - offset;
-    const purchaseOrderDate = standardPO.createdAt instanceof Date ? standardPO.createdAt.toDateString(): 'Unknown Date';
-    doc.font('Helvetica').fontSize(8.5).text(`Standard Purchase Order Date: ${purchaseOrderDate}`, titleX, newYTextPosition);
-    doc.font('Helvetica').fontSize(8.5).text(`Standard Purchase Order ID:${standardPO.standardPurchaseOrderId}`, titleX, newYTextPosition + 9.5);
+    const saleInvoiceDate = standardSI.createdAt instanceof Date ? standardSI.createdAt.toDateString(): 'Unknown Date';
+    doc.font('Helvetica').fontSize(8.5).text(`Standard Sale Invoice Date: ${saleInvoiceDate}`, titleX, newYTextPosition);
+    doc.font('Helvetica').fontSize(8.5).text(`Standard SaleInvoice ID:${standardSI.standardSaleInvoiceId}`, titleX, newYTextPosition + 9.5);
 
     doc.moveDown(7);
 
@@ -156,15 +154,15 @@ async function generateStandardPurchaseOrderPDF(outputFilePath:string, standardP
     doc.moveDown(6);
        
     const headingsSectionA = ['S/N', 'Item ID', 'Item Code', 'Item Name', 'Item Description', 'No. of Units', 'Unit Price', 'Total Price'];
-    const valuesSectionA = standardPO.StandardPurchaseOrderItems.map(item => [
-        item.standardPurchaseOrderCount || 'N/A',
-        item.standardPurchaseOrderIntentID || 'N/A',
-        item.standardPurchaseOrderIntentItemCode || 'N/A', 
-        item.standardPurchaseOrderIntentItemName || 'N/A',
-        item.standardPurchaseOrderIntentDesc || 'N/A', 
-        item.standardPurchaseOrderNoOfUnitBought?.toString() + ' ' + item.standardPurchaseOrderUnitOfMeasure || '0', 
-        formatCurrency(item.standardPurchaseOrderUnitPrice || 0),
-        formatCurrency(item.standardPurchaseOrderTotalStartPrice || 0),
+    const valuesSectionA = standardSI.StandardSaleInvoiceItems.map(item => [
+        item.standardSaleCount || 'N/A',
+        item.standardSaleInvoiceIntentID || 'N/A',
+        item.standardSaleInvoiceItemCode || 'N/A', 
+        item.standardSaleInvoiceIntentItemName || 'N/A',
+        item.standardSaleInvoiceIntentDesc || 'N/A', 
+        item.standardSaleInvoiceNoOfUnitBought?.toString() + ' ' + item.standardSaleInvoiceUnitOfMeasure || '0', 
+        formatCurrency(item.standardSaleInvoiceUnitPrice || 0),
+        formatCurrency(item.standardSaleInvoiceTotalStartPrice || 0),
     ]);
 
     //Function to draw a cell of Section A.
@@ -174,7 +172,6 @@ async function generateStandardPurchaseOrderPDF(outputFilePath:string, standardP
         const padding = 5;
         doc.text(text, x + padding, y + padding, {width:width - padding * 2, align:'left', lineBreak:true});
     };
-
     //Function to draw the header row of Section A.
     function drawSectionAHeaderRow() {
         let currentX = tableX;
@@ -188,8 +185,7 @@ async function generateStandardPurchaseOrderPDF(outputFilePath:string, standardP
             currentX += headersSectionA[index];
         });
             tableY += maxHeaderHeight;
-        };
-    
+    };
     //Function to draw the values row of section A
     function drawSectionAValuesRow() {
         let currentX = tableX;
@@ -210,83 +206,83 @@ async function generateStandardPurchaseOrderPDF(outputFilePath:string, standardP
         tableY += maxRowHeight;
         currentX = tableX; // Reset X position for the next row
             });
-        };
-        drawSectionAHeaderRow();
-        drawSectionAValuesRow();
-        doc.moveDown(2);
+    };
+    drawSectionAHeaderRow();
+    drawSectionAValuesRow();
+    doc.moveDown(2);
 
 
-       //-----------DRAW RECTANGLE B AROUND TRANSACTION HISTORY--------------
-       doc.y = tableY + 12;
-       doc.font('Helvetica-Bold').fontSize(8).text('Transaction History', contentX, doc.y, {underline:true});
-       tableY = doc.y;
-       const headersSectionB = [75, 240, 80, 81, 88];
-       const totalSectionBTableWidth = headersSectionB.reduce((sum, width) => sum + width, 0);
-       const underlineSectionB = doc.y + 1;
+    //-----------DRAW RECTANGLE B AROUND TRANSACTION HISTORY--------------
+    doc.y = tableY + 12;
+    doc.font('Helvetica-Bold').fontSize(8).text('Transaction History', contentX, doc.y, {underline:true});
+    tableY = doc.y;
+    const headersSectionB = [75, 240, 80, 81, 88];
+    const totalSectionBTableWidth = headersSectionB.reduce((sum, width) => sum + width, 0);
+    const underlineSectionB = doc.y + 1;
 
-       doc.moveTo(contentX, underlineSectionB).lineTo(contentX + totalSectionBTableWidth, underlineSectionB).stroke();
+    doc.moveTo(contentX, underlineSectionB).lineTo(contentX + totalSectionBTableWidth, underlineSectionB).stroke();
 
-       tableY = underlineSectionB + 5;
-       doc.y = tableY;
+    tableY = underlineSectionB + 5;
+    doc.y = tableY;
 
-       const headingsSectionB = ['Transaction Date', 'Transaction Remarks', 'DR Amount', 'CR Amount', 'Ending Balance'];
+    const headingsSectionB = ['Transaction Date', 'Transaction Remarks', 'DR Amount', 'CR Amount', 'Ending Balance'];
 
-       //Function to draw a cell of Section B with conditional borders to avoid unnecessary underlines
-       function drawSectionBHeaderCell(x, y, width, height, text, isHeader = false) {
-        //Draw borders only if there's meaningful content in the cell
-            if (text) {
-            //Draw the full rectangle for cells with content
-            doc.rect(x, y, width, height).stroke();
-            } else {
-            //Draw only the top and bottom borders for empty cells
-            doc.moveTo(x, y).lineTo(x + width, y).stroke(); // Top border
-            doc.moveTo(x, y + height).lineTo(x + width, y + height).stroke(); // Bottom border
-            }
-            //Set font style based on whether the cell is a header
-            doc.font(isHeader ? 'Helvetica-Bold' : 'Helvetica').fontSize(8);
-            const padding = 5;
-            //Draw the text
-            doc.text(text, x + padding, y + padding, {width: width - padding * 2, align:'left', lineBreak: true});
-        };
+    //Function to draw a cell of Section B with conditional borders to avoid unnecessary underlines
+    function drawSectionBHeaderCell(x, y, width, height, text, isHeader = false) {
+    //Draw borders only if there's meaningful content in the cell
+        if (text) {
+        //Draw the full rectangle for cells with content
+        doc.rect(x, y, width, height).stroke();
+        } else {
+        //Draw only the top and bottom borders for empty cells
+        doc.moveTo(x, y).lineTo(x + width, y).stroke(); // Top border
+        doc.moveTo(x, y + height).lineTo(x + width, y + height).stroke(); // Bottom border
+        }
+        //Set font style based on whether the cell is a header
+        doc.font(isHeader ? 'Helvetica-Bold' : 'Helvetica').fontSize(8);
+        const padding = 5;
+        //Draw the text
+        doc.text(text, x + padding, y + padding, {width: width - padding * 2, align:'left', lineBreak: true});
+    };
 
-        //Function to draw the header row of Section B
-        function drawSectionBHeaderRow() {
-            let currentX = tableX;
-            let maxHeaderHeight = 0;
-            headingsSectionB.forEach((header, index) => {
-                const textHeight = doc.font('Helvetica-Bold').fontSize(8).heightOfString(header, {width:headersSectionB[index] - 10, align: 'left'});
-                maxHeaderHeight = Math.max(maxHeaderHeight, textHeight + 5);
-            });
-            headingsSectionB.forEach((header, index) => {
-                drawSectionBHeaderCell(currentX, tableY, headersSectionB[index], maxHeaderHeight, header, true);
-                currentX += headersSectionB[index];
-            });
-            tableY += maxHeaderHeight;
-        };
-        drawSectionBHeaderRow();
+    //Function to draw the header row of Section B
+    function drawSectionBHeaderRow() {
+        let currentX = tableX;
+        let maxHeaderHeight = 0;
+        headingsSectionB.forEach((header, index) => {
+            const textHeight = doc.font('Helvetica-Bold').fontSize(8).heightOfString(header, {width:headersSectionB[index] - 10, align: 'left'});
+            maxHeaderHeight = Math.max(maxHeaderHeight, textHeight + 5);
+        });
+        headingsSectionB.forEach((header, index) => {
+            drawSectionBHeaderCell(currentX, tableY, headersSectionB[index], maxHeaderHeight, header, true);
+            currentX += headersSectionB[index];
+        });
+        tableY += maxHeaderHeight;
+    };
+    drawSectionBHeaderRow();
 
         
-        //Function to draw each row of the table with proper handling for page breaks, with the statement balance, skip row if it's a remittance with zero balance
-        function drawSectionBTransactionRows(
-            values: any[],
-            event: any,
-            standardPO: IStandardPurchaseOrder,
-            columnWidths: number[],
-            headersSectionB: number[]
+    //Function to draw each row of the table with proper handling for page breaks, with the statement balance, skip row if it's a remittance with zero balance
+    function drawSectionBTransactionRows(
+        values: any[],
+        event: any,
+        standardSI: IStandardSaleOrder,
+        columnWidths: number[],
+        headersSectionB: number[]
         ) {
-            let currentX = tableX;
-            let maxRowHeight = 0;
+        let currentX = tableX;
+        let maxRowHeight = 0;
         
-            // Skip row if it's a 'Remittance' with zero balance
-            if (event.type === 'Remittance' && values[3] === '0') {
-                return;
-            }
+        //Skip row if it's a 'Remittance' with zero balance
+        if (event.type === 'Remittance' && values[3] === '0') {
+            return;
+        }
         
-            // ✅ DO NOT override values[4] anymore
-            // We now fully trust handleStandardPurchaseOrderForPDF() to pass correct cumulativeBalance
+        // ✅ DO NOT override values[4] anymore
+        // We now fully trust handleStandardPurchaseOrderForPDF() to pass correct cumulativeBalance
         
-            // Measure row height and determine max height
-            values.forEach((value, index) => {
+        //Measure row height and determine max height
+        values.forEach((value, index) => {
                 const textHeight = doc.font('Helvetica').fontSize(7.5).heightOfString(value || '', {
                     width: columnWidths[index] - 20,
                     align: 'left',
@@ -318,37 +314,37 @@ async function generateStandardPurchaseOrderPDF(outputFilePath:string, standardP
             doc.fillColor('black');
         }
         
-        function sortTransactionsByDateAndTime(standardPO: IStandardPurchaseOrder): any[] {
+        function sortTransactionsByDateAndTime(standardSI: IStandardSaleOrder): any[] {
             const events: any[] = [];
-            standardPO.StandardPurchaseOrderItems.forEach((item, itemIndex) => {
+            standardSI.StandardSaleInvoiceItems.forEach((item, itemIndex) => {
               //Price changes (booking and updates)
-              item.PriceChangeOnStandardPOHistoryDetails?.forEach((detail) => {
+              item.PriceChangeOnStandardSaleInvoiceHistoryDetails?.forEach((detail) => {
                 events.push({
                   type: 'PriceChange',
-                  date: new Date(detail.priceChangeOnStandardPODate),
+                  date: new Date(detail.priceChangeOnStandardSaleInvoiceDate),
                   data: detail,
                   itemIndex,
                 });
               });
           
               //Reversals (LastCredit)
-              item.PriceReverseAlertDetailsOnStandardPO?.forEach((detail) => {
+              item.PriceReverseAlertDetailsOnStandardSaleInvoice?.forEach((detail) => {
                 events.push({
                   type: 'LastCredit',
-                  date: new Date(detail.standardPOReverseDate),
+                  date: new Date(detail.standardSaleInvoiceReverseDate),
                   data: detail,
                   itemIndex,
                 });
               });
           
               //Item-level remittances
-              item.RemittanceBalanceToBePaidDetailsOnStandardPO?.forEach((detail) => {
+              item.RemittanceBalanceToBePaidDetailsOnStandardSaleInvoice?.forEach((detail) => {
                 events.push({
                   type: 'Remittance',
                   date: new Date(
-                    detail.remitDateOnStandardPO ||
-                    detail.remitDateOnStandardPO ||
-                    detail.priceChangeOnStandardPODate
+                    detail.remitDateOnStandardSaleInvoice ||
+                    detail.remitDateOnStandardSaleInvoice ||
+                    detail.priceChangeOnStandardSaleInvoiceDate
                   ),
                   data: detail,
                   itemIndex,
@@ -357,10 +353,10 @@ async function generateStandardPurchaseOrderPDF(outputFilePath:string, standardP
             });
           
             //Global remittances
-            standardPO.TotalRemittanceMadeSoFarOnStandardPO?.forEach((entry) => {
+            standardSI.TotalRemittanceMadeSoFarOnStandardSaleInvoice?.forEach((entry) => {
               events.push({
                 type: 'Remittance',
-                date: new Date(entry.remittedDateOnStandardPO || entry.remitDateOnStandardPO),
+                date: new Date(entry.remittedDateOnStandardSaleInvoice || entry.remitDateOnStandardSaleInvoice),
                 data: entry,
               });
             });
@@ -383,11 +379,11 @@ async function generateStandardPurchaseOrderPDF(outputFilePath:string, standardP
           }
           
         //Function to get the remittance balance to be paid on the purchase order
-        function getRemittanceExpectedBalanceToBePaidOnPO(standardPO:IStandardPurchaseOrder):string {
+        function getRemittanceExpectedBalanceToBePaidOnSaleInvoice(standardSI:IStandardSaleOrder):string {
             let totalBalance = 0;
             //Iterate over each item in standardPurchaseOrderItems
-            standardPO.StandardPurchaseOrderItems.forEach((item) => {
-                const balance = item.RemittanceBalanceToBePaidDetailsOnStandardPO?.[0]?.remittanceExpectedBalToBePaidStandardPO;
+            standardSI.StandardSaleInvoiceItems.forEach((item) => {
+                const balance = item.RemittanceBalanceToBePaidDetailsOnStandardSaleInvoice?.[0]?.remittanceExpectedBalToBePaidStandardSaleInvoice;
                 if (balance !== undefined) {
                     totalBalance += balance;
                 }
@@ -412,25 +408,25 @@ async function generateStandardPurchaseOrderPDF(outputFilePath:string, standardP
         };
 
         //Function to handle the PDF for the purchase order
-        function handleStandardPurchaseOrderForPDF(standardPO: IStandardPurchaseOrder) {
-            console.log(`Searching for Standard Purchase Order with ID: ${standardPO.standardPurchaseOrderId}`);
+        function handleStandardPurchaseOrderForPDF(standardSI:IStandardSaleOrder) {
+            console.log(`Searching for Standard Sale Invoice with ID: ${standardSI.standardSaleInvoiceId}`);
         
         let cumulativeBalance = 0;
         let currentItemIndex = 0;
         
-        const sortedEvents = sortTransactionsByDateAndTime(standardPO);
+        const sortedEvents = sortTransactionsByDateAndTime(standardSI);
             sortedEvents.forEach((event) => {
                 let rowValues: string[] = [];
                 let shouldIncludeRow = true;
         
                 switch (event.type) {
                     case 'PriceAtBookingPO': {
-                        const currentItem = standardPO.StandardPurchaseOrderItems[currentItemIndex];
-                        const itemPrice = parseFloat(currentItem.standardPurchaseOrderTotalStartPrice?.toString() || '0');
+                        const currentItem = standardSI.StandardSaleInvoiceItems[currentItemIndex];
+                        const itemPrice = parseFloat(currentItem.standardSaleInvoiceTotalStartPrice?.toString() || '0');
                         cumulativeBalance -= itemPrice;
                         rowValues = [
-                            formatDateTime(event.data.priceChangeOnStandardPODate),
-                            event.data.priceChangeOnStandardPORemarks ?? 'Price At Booking',
+                            formatDateTime(event.data.priceChangeOnStandardSaleInvoiceDate),
+                            event.data.priceChangeOnStandardSaleInvoiceRemarks ?? 'Price At Booking',
                             formatCurrency(itemPrice),
                             '',
                             formatCurrency(cumulativeBalance),
@@ -439,11 +435,11 @@ async function generateStandardPurchaseOrderPDF(outputFilePath:string, standardP
                         break;
                     }
                     case 'LastCredit': {
-                        const oldPrice = parseFloat(event.data.standardPOReverseOldPrice?.toString() || '0');
+                        const oldPrice = parseFloat(event.data.standardSaleInvoiceReverseOldPrice?.toString() || '0');
                         cumulativeBalance += oldPrice;
                         rowValues = [
-                            formatDateTime(event.data.standardPOReverseDate),
-                            event.data.standardPOReverseNewPriceAlertRemarks ?? 'Price Correction - Reversal',
+                            formatDateTime(event.data.standardSaleInvoiceReverseDate),
+                            event.data.standardSaleInvoiceReverseNewPriceAlertRemarks ?? 'Price Correction - Reversal',
                             '',
                             formatCurrency(oldPrice),
                             formatCurrency(cumulativeBalance),
@@ -451,11 +447,11 @@ async function generateStandardPurchaseOrderPDF(outputFilePath:string, standardP
                         break;
                     }
                     case 'PriceChange': {
-                        const newPrice = parseFloat(event.data.newTotalPriceAmountOnStandardPO?.toString() || '0');
+                        const newPrice = parseFloat(event.data.newTotalPriceAmountOnStandardSaleInvoice?.toString() || '0');
                         cumulativeBalance -= newPrice;
                         rowValues = [
-                            formatDateTime(event.data.priceChangeOnStandardPODate),
-                            event.data.priceChangeOnStandardPORemarks ?? 'Price Change',
+                            formatDateTime(event.data.priceChangeOnStandardSaleInvoiceDate),
+                            event.data.priceChangeOnStandardSaleInvoiceRemarks ?? 'Price Change',
                             formatCurrency(newPrice),
                             '',
                             formatCurrency(cumulativeBalance),
@@ -463,13 +459,13 @@ async function generateStandardPurchaseOrderPDF(outputFilePath:string, standardP
                         break;
                     }
                     case 'Remittance': {
-                        const remittedAmount = parseFloat(event.data.remittedAmountOnStandardPO?.toString() || '0');
+                        const remittedAmount = parseFloat(event.data.remittedAmountOnStandardSaleInvoice?.toString() || '0');
                         if (remittedAmount === 0) {
                           shouldIncludeRow = false;
                           break;
                         }
-                        const remittanceDate = event.data.remittedDateOnStandardPO || event.data.remitDateOnStandardPO || event.data.priceChangeOnStandardPODate;
-                        const remarks = event.data.remittedRemarksOnStandardPO || event.data.remittanceUpdateRemarksOnStandardPO || 'Remittance';
+                        const remittanceDate = event.data.remittedDateOnStandardSaleInvoice || event.data.remitDateOnStandardSaleInvoice || event.data.priceChangeOnStandardSaleInvoiceDate;
+                        const remarks = event.data.remittedRemarksOnStandardSaleInvoice || event.data.remittanceUpdateRemarksOnStandardSaleInvoice || 'Remittance';
                         cumulativeBalance += remittedAmount;
                         rowValues = [
                           formatDateTime(remittanceDate),
@@ -486,7 +482,7 @@ async function generateStandardPurchaseOrderPDF(outputFilePath:string, standardP
                         shouldIncludeRow = false;
                 }
                 if (shouldIncludeRow) {
-                    drawSectionBTransactionRows(rowValues, event, standardPO, headersSectionB, headersSectionB);
+                    drawSectionBTransactionRows(rowValues, event, standardSI, headersSectionB, headersSectionB);
                 }
             });
         }
@@ -499,7 +495,7 @@ async function generateStandardPurchaseOrderPDF(outputFilePath:string, standardP
         };
         
         //Call the Function to handle the generation of the purchase order PDF
-        handleStandardPurchaseOrderForPDF(standardPO);
+        handleStandardPurchaseOrderForPDF(standardSI);
         doc.on('end', drawFooter);
         doc.end();
         console.log('PDF Generated Successfully:', filePath);
@@ -510,5 +506,5 @@ async function generateStandardPurchaseOrderPDF(outputFilePath:string, standardP
 };
         
 //Export the controller function
-export default StandardPurchaseOrderPDFController;
+export default StandardSaleOrderPDFController;
         

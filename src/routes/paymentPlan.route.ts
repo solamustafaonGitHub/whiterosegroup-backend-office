@@ -1,8 +1,8 @@
 import path from 'path';
 import fs from 'fs';
 import express from 'express';
-import {PaymentPlan, IPaymentPlan} from '../models/paymentPlan.model.js';
-import {PaymentPlanPDFController} from '../controllers/paymentPlan.controller.js';
+import {PaymentPlanForFractionalOwnership, IPaymentPlanForFractionalOwnership} from '../models/paymentPlanForFractionalOwnership.model.js';
+import {PaymentPlanPDFController} from '../controllers/paymentPlanForFractionalOwnership.controller.js';
 
 const paymentPlanRouter = express.Router();
 

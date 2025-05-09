@@ -28,7 +28,7 @@ interface TotalRemittance {
 };
 
 
-//function to generate the purchase order PDF
+//Function to generate the purchase order PDF
 export const LayAwayPurchaseOrderPDFController = async (req:Request, res:Response) => {
     const layAwayPurchaseOrderId = req.params.id;
     try {
