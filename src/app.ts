@@ -120,10 +120,14 @@ const start = async () => {
   app.use('/public', express.static(path.join(__dirname, 'public'))); //middleware to parse form data
   app.use(express.static(path.join(__dirname, 'pdfs/'))); //middleware to serve static files
   
-  const mongooseDB = await mongoose.connect('mongodb+srv://jorgehausconsulting:Woman1010@cluster0.rsvxjzs.mongodb.net/asset360') //connect to MongoDB
+  const MONGODB_URI = process.env.MONGODB_URI;
+  if (!MONGODB_URI) {
+    throw new Error('MONGODB_URI environment variable is not defined');
+  }
+  const mongooseDB = await mongoose.connect(MONGODB_URI) //connect to MongoDB
   const MongoDBStore = connectMongoDBSession(session);
   const sessionStore = new MongoDBStore({
-    uri:'mongodb+srv://jorgehausconsulting:Woman1010@cluster0.rsvxjzs.mongodb.net/asset360', collection:'session'});
+    uri: MONGODB_URI, collection:'session'});
     sessionStore.on('error', (error) => {
     console.error('MongoDB Session Store Error:', error);
   });
@@ -132,7 +136,7 @@ const start = async () => {
   //To do this, we might need to create a handler for the dashboard to access server data'.
   const dashboardHandler = async () => {
     try {
-        await mongoose.connect('mongodb+srv://jorgehausconsulting:Woman1010@cluster0.rsvxjzs.mongodb.net/asset360');
+        await mongoose.connect(MONGODB_URI);
         
         //AccountHolder Model
         const accountHolderModel = mongoose.model('AccountHolder', new mongoose.Schema({
